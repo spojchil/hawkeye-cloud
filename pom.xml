@@ -36,6 +36,7 @@
         <commons-lang3.version>3.17.0</commons-lang3.version>
         <commons-collections4.version>4.5.0</commons-collections4.version>
         <guava.version>33.3.1-jre</guava.version>
+        <spring-boot-starter-aop.version>3.5.13</spring-boot-starter-aop.version>
 
         <!-- 数据库相关 -->
         <mysql.version>9.1.0</mysql.version>
@@ -72,6 +73,13 @@
     <!-- 依赖管理，统一版本 -->
     <dependencyManagement>
         <dependencies>
+            <!-- 切面支持 -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-aop</artifactId>
+                <version>${spring-boot-starter-aop.version}</version>
+            </dependency>
+
             <!-- Spring Cloud 全家桶 -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
@@ -357,42 +365,5 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <!-- 开发环境 -->
-        <profile>
-            <id>dev</id>
-            <properties>
-                <spring.profiles.active>dev</spring.profiles.active>
-            </properties>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-        </profile>
-
-        <!-- 测试环境 -->
-        <profile>
-            <id>test</id>
-            <properties>
-                <spring.profiles.active>test</spring.profiles.active>
-            </properties>
-        </profile>
-
-        <!-- 生产环境 -->
-        <profile>
-            <id>prod</id>
-            <properties>
-                <spring.profiles.active>prod</spring.profiles.active>
-            </properties>
-        </profile>
-
-        <!-- 打包时跳过测试 -->
-        <profile>
-            <id>skipTests</id>
-            <properties>
-                <skipTests>true</skipTests>
-            </properties>
-        </profile>
-    </profiles>
 
 </project>

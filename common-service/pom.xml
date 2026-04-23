@@ -11,11 +11,10 @@
 
     <artifactId>common-service</artifactId>
     <packaging>pom</packaging>
-
-    <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
+    <name>common-service</name>
+    <description>提供公共的工具服务</description>
+    <modules>
+        <module>common-utils</module>
+    </modules>
 
 </project>
