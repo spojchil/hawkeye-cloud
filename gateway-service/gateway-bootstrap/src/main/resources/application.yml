@@ -17,6 +17,35 @@ spring:
         namespace: ${NACOS_NAMESPACE:dev}
         group: DEFAULT_GROUP
 
+    gateway:
+      server:
+        webflux:
+          # 自动根据注册中心服务名生成路由，开发方便调试
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+
+          routes:
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - StripPrefix=1
+
+          # CORS 统一在这里配置
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns: "*"
+                allowedMethods: "*"
+                allowedHeaders: "*"
+                allowCredentials: true
+                maxAge: 3600
+
+          # 暂时不配限流
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
