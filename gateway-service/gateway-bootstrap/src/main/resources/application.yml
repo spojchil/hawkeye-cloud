@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: gateway-service
+
+  profiles:
+    active: dev
+
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+      - optional:nacos:common-${spring.profiles.active}.yaml
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: DEFAULT_GROUP
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
+        shutdown-timeout: 100ms
+
+server:
+  port: ${SERVER_PORT:8001}

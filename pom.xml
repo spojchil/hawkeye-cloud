@@ -19,6 +19,7 @@
 
     <modules>
         <module>common-service</module>
+        <module>gateway-service</module>
     </modules>
 
     <properties>
@@ -44,7 +45,8 @@
         <druid.version>1.2.38</druid.version>
 
         <!-- Redis客户端 -->
-        <lettuce.version>6.5.5.RELEASE</lettuce.version>
+
+        <!-- <lettuce.version>6.5.5.RELEASE</lettuce.version> 锁定的版本太高了-->
         <redisson.version>3.32.0</redisson.version>
 
         <!-- 消息队列 -->
