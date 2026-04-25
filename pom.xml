@@ -21,6 +21,7 @@
         <module>common-service</module>
         <module>gateway-service</module>
         <module>auth-service</module>
+        <module>asset-service</module>
     </modules>
 
     <properties>
