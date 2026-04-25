@@ -39,4 +39,9 @@ public class BaseEntity implements Serializable {
      * 租户id
      */
     private Long tenantId;
+
+    /**
+     * 删除标识
+     */
+    private Boolean isDeleted = false;
 }

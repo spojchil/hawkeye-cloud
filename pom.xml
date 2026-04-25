@@ -20,6 +20,7 @@
     <modules>
         <module>common-service</module>
         <module>gateway-service</module>
+        <module>auth-service</module>
     </modules>
 
     <properties>
@@ -32,7 +33,7 @@
         <!-- 基础工具版本 -->
         <lombok.version>1.18.38</lombok.version>
         <mapstruct.version>1.6.3</mapstruct.version>
-        <knife4j.version>4.6.0</knife4j.version>
+        <knife4j.version>4.4.0</knife4j.version>
         <hutool.version>5.8.40</hutool.version>
         <commons-lang3.version>3.17.0</commons-lang3.version>
         <commons-collections4.version>4.5.0</commons-collections4.version>
@@ -41,7 +42,9 @@
 
         <!-- 数据库相关 -->
         <mysql.version>9.1.0</mysql.version>
-        <mybatis-plus.version>3.5.14</mybatis-plus.version>
+<!--        <mybatis-plus.version>3.5.15</mybatis-plus.version>-->
+        <mybatis.version>4.0.1</mybatis.version>
+
         <druid.version>1.2.38</druid.version>
 
         <!-- Redis客户端 -->
@@ -108,10 +111,16 @@
             </dependency>
 
             <!-- MyBatis Plus -->
+<!--            <dependency>-->
+<!--                <groupId>com.baomidou</groupId>-->
+<!--                <artifactId>mybatis-plus-boot-starter</artifactId>-->
+<!--                <version>${mybatis-plus.version}</version>-->
+<!--            </dependency>-->
+
             <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-boot-starter</artifactId>
-                <version>${mybatis-plus.version}</version>
+                <groupId>org.mybatis.spring.boot</groupId>
+                <artifactId>mybatis-spring-boot-starter</artifactId>
+                <version>${mybatis.version}</version>
             </dependency>
 
             <!-- Druid 连接池 -->
@@ -155,19 +164,19 @@
                 <version>${rocketmq.version}</version>
             </dependency>
 
-            <!-- MapStruct 对象映射 -->
-            <dependency>
-                <groupId>org.mapstruct</groupId>
-                <artifactId>mapstruct</artifactId>
-                <version>${mapstruct.version}</version>
-            </dependency>
+<!--            &lt;!&ndash; MapStruct 对象映射 &ndash;&gt;-->
+<!--            <dependency>-->
+<!--                <groupId>org.mapstruct</groupId>-->
+<!--                <artifactId>mapstruct</artifactId>-->
+<!--                <version>${mapstruct.version}</version>-->
+<!--            </dependency>-->
 
-            <dependency>
-                <groupId>org.mapstruct</groupId>
-                <artifactId>mapstruct-processor</artifactId>
-                <version>${mapstruct.version}</version>
-                <scope>provided</scope>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>org.mapstruct</groupId>-->
+<!--                <artifactId>mapstruct-processor</artifactId>-->
+<!--                <version>${mapstruct.version}</version>-->
+<!--                <scope>provided</scope>-->
+<!--            </dependency>-->
 
             <!-- 工具类库 -->
             <dependency>
@@ -285,11 +294,11 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
-        <!-- MapStruct 核心 -->
-        <dependency>
-            <groupId>org.mapstruct</groupId>
-            <artifactId>mapstruct</artifactId>
-        </dependency>
+<!--        &lt;!&ndash; MapStruct 核心 &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>org.mapstruct</groupId>-->
+<!--            <artifactId>mapstruct</artifactId>-->
+<!--        </dependency>-->
 
         <!-- 测试依赖 -->
         <dependency>
@@ -317,12 +326,12 @@
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
                         </path>
-                        <!-- MapStruct -->
-                        <path>
-                            <groupId>org.mapstruct</groupId>
-                            <artifactId>mapstruct-processor</artifactId>
-                            <version>${mapstruct.version}</version>
-                        </path>
+<!--                        &lt;!&ndash; MapStruct &ndash;&gt;-->
+<!--                        <path>-->
+<!--                            <groupId>org.mapstruct</groupId>-->
+<!--                            <artifactId>mapstruct-processor</artifactId>-->
+<!--                            <version>${mapstruct.version}</version>-->
+<!--                        </path>-->
                     </annotationProcessorPaths>
                     <compilerArgs>
                         <arg>-Amapstruct.suppressGeneratorTimestamp=true</arg>
