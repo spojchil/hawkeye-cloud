@@ -58,4 +58,4 @@ mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.hawkeye.auth.common.pojo.entity
 server:
-  port: ${SERVER_PORT:8001}
+  port: ${SERVER_PORT:8002}
