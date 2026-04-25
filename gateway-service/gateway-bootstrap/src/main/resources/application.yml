@@ -14,7 +14,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
-        namespace: ${NACOS_NAMESPACE:dev}
+#        namespace: ${NACOS_NAMESPACE:dev}
         group: DEFAULT_GROUP
 
     gateway:
@@ -63,3 +63,16 @@ spring:
 
 server:
   port: ${SERVER_PORT:8001}
+
+# 定义一个统一的日志级别变量
+custom:
+  log-level: INFO
+
+logging:
+  level:
+    # 使用变量统一管理
+    org.springframework.cloud.gateway: ${custom.log-level}
+    org.springframework.web: ${custom.log-level}
+    reactor.netty: ${custom.log-level}
+    com.alibaba.nacos: ${custom.log-level}
+    org.springframework.cloud.loadbalancer: ${custom.log-level}

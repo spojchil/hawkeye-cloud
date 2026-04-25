@@ -14,7 +14,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
-        namespace: ${NACOS_NAMESPACE:dev}
+#        namespace: ${NACOS_NAMESPACE:dev}
         group: DEFAULT_GROUP
 
   data:
