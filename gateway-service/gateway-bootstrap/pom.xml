@@ -5,28 +5,29 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.github.spojchil</groupId>
-        <artifactId>common-service</artifactId>
+        <artifactId>gateway-service</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>common-utils</artifactId>
+    <artifactId>gateway-bootstrap</artifactId>
 
     <dependencies>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <groupId>io.github.spojchil</groupId>
+            <artifactId>gateway-business</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
+
+        <!-- Spring Cloud 服务发现支持 -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter</artifactId>
         </dependency>
+
+        <!-- Nacos 服务注册与配置中心 -->
         <dependency>
-            <groupId>com.alibaba.fastjson2</groupId>
-            <artifactId>fastjson2</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.mybatis.spring.boot</groupId>
-            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
         </dependency>
     </dependencies>
 
