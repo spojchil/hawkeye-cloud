@@ -64,6 +64,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <fastjson2.version>2.0.53</fastjson2.version>
         <easyexcel.version>4.0.3</easyexcel.version>
+        <pagehelper.version>4.0.0</pagehelper.version>
 
         <!-- 测试相关 -->
         <mockito.version>5.12.0</mockito.version>
@@ -165,19 +166,19 @@
                 <version>${rocketmq.version}</version>
             </dependency>
 
-<!--            &lt;!&ndash; MapStruct 对象映射 &ndash;&gt;-->
-<!--            <dependency>-->
-<!--                <groupId>org.mapstruct</groupId>-->
-<!--                <artifactId>mapstruct</artifactId>-->
-<!--                <version>${mapstruct.version}</version>-->
-<!--            </dependency>-->
+            <!-- MapStruct 对象映射 -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
 
-<!--            <dependency>-->
-<!--                <groupId>org.mapstruct</groupId>-->
-<!--                <artifactId>mapstruct-processor</artifactId>-->
-<!--                <version>${mapstruct.version}</version>-->
-<!--                <scope>provided</scope>-->
-<!--            </dependency>-->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+                <scope>provided</scope>
+            </dependency>
 
             <!-- 工具类库 -->
             <dependency>
@@ -272,6 +273,14 @@
                 <version>${testcontainers.version}</version>
                 <scope>test</scope>
             </dependency>
+
+            <!-- 分页插件 -->
+            <dependency>
+                <groupId>com.github.pagehelper</groupId>
+                <artifactId>pagehelper-spring-boot-starter</artifactId>
+                <version>${pagehelper.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -295,11 +304,11 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
-<!--        &lt;!&ndash; MapStruct 核心 &ndash;&gt;-->
-<!--        <dependency>-->
-<!--            <groupId>org.mapstruct</groupId>-->
-<!--            <artifactId>mapstruct</artifactId>-->
-<!--        </dependency>-->
+        <!-- MapStruct 核心 -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
 
         <!-- 测试依赖 -->
         <dependency>
@@ -327,18 +336,18 @@
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
                         </path>
-<!--                        &lt;!&ndash; MapStruct &ndash;&gt;-->
-<!--                        <path>-->
-<!--                            <groupId>org.mapstruct</groupId>-->
-<!--                            <artifactId>mapstruct-processor</artifactId>-->
-<!--                            <version>${mapstruct.version}</version>-->
-<!--                        </path>-->
+                        <!-- MapStruct -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
                     </annotationProcessorPaths>
-<!--                    <compilerArgs>-->
-<!--                        <arg>-Amapstruct.suppressGeneratorTimestamp=true</arg>-->
-<!--                        <arg>-Amapstruct.defaultComponentModel=spring</arg>-->
-<!--                        <arg>-Amapstruct.unmappedTargetPolicy=IGNORE</arg>-->
-<!--                    </compilerArgs>-->
+                    <compilerArgs>
+                        <arg>-Amapstruct.suppressGeneratorTimestamp=true</arg>
+                        <arg>-Amapstruct.defaultComponentModel=spring</arg>
+                        <arg>-Amapstruct.unmappedTargetPolicy=IGNORE</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
 

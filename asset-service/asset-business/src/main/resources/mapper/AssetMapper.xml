@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.hawkeye.asset.business.mapper.AssetMapper">
+    <select id="pageQuery" resultType="Asset">
+        # 尽量避免使用*
+        select asset_id,name,request_host,risk_level,status from asset
+        <where>
+            # 租户隔离由mabatis拦截器实现
+            deleted = 0,
+            <if test="name != null">and name like concat('%',#{name},'%')</if>
+            <if test="requestHost != null">and request_host like concat('%',#{requestHost},'%')</if>
+            <if test="riskLevel != null">and risk_level = #{riskLevel}</if>
+            <if test="status != null">and status = #{status}</if>
+            <if test="categoryId != null">and category_id = #{categoryId}</if>
+        </where>
+        order by name desc
+    </select>
+</mapper>

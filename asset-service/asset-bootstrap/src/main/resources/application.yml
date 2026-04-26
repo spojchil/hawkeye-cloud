@@ -2,6 +2,9 @@ spring:
   application:
     name: asset-service
 
+#  threads.virtual.enabled: true 整个框架没跟随，聊胜于无，仍然需要自己实现虚拟线程相关
+
+
   profiles:
     active: dev
 

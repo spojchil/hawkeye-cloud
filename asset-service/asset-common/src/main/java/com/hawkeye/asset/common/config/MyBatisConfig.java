@@ -9,6 +9,9 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class MyBatisConfig {
+    /**
+     * 枚举类型处理器
+     */
     @Bean
     public CodeEnumTypeHandler<RequestMethodEnum> requestMethodHandler() {
         return new CodeEnumTypeHandler<>(RequestMethodEnum.class);
