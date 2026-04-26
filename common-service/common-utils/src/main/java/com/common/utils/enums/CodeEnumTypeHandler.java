@@ -15,6 +15,9 @@ import java.util.Map;
 @MappedTypes(CodeEnum.class)
 public class CodeEnumTypeHandler<E extends Enum<?> & CodeEnum> extends BaseTypeHandler<E> {
 
+    // TODO 或许可以考虑替换为字符串映射
+    // 还是过度设计了，数据库直接存字符串，然后开启map-underscore-to-camel-case: true最简单了
+
     @Getter
     private final Class<E> type;
     private final Map<Integer, E> codeMap = new HashMap<>();
