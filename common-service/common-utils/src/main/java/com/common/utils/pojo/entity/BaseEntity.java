@@ -4,7 +4,7 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 /**
  * 实体基类
@@ -16,17 +16,17 @@ public class BaseEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 创建时间
+     * 创建时间，数据库管理
      */
-    private Instant createTime;
+    private LocalDateTime createTime;
 
     /**
      * 更新时间
      */
-    private Instant updateTime;
+    private LocalDateTime updateTime;
 
     /**
-     * 创建人
+     * 创建人，由MyBatis拦截器填充
      */
     private Long createBy;
 
@@ -36,12 +36,12 @@ public class BaseEntity implements Serializable {
     private Long updateBy;
 
     /**
-     * 租户id
+     * 租户id，
      */
-    private Long tenantId;
+    private Long tenantId = 1L;  // 默认1，拦截器可覆盖
 
     /**
      * 删除标识
      */
-    private Boolean isDeleted = false;
+    private Boolean deleted = false;  // 字段名前最好不要有is会有混乱
 }

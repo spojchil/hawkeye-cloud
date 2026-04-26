@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: asset-service
+
+#  threads.virtual.enabled: true 整个框架没跟随，聊胜于无，仍然需要自己实现虚拟线程相关
+
+
+  profiles:
+    active: dev
+
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+      - optional:nacos:common-${spring.profiles.active}.yaml
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+#        namespace: ${NACOS_NAMESPACE:dev}
+        group: DEFAULT_GROUP
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:hawkeye}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+
+
+logging:
+  level:
+    com.hawkeye.auth.business.mapper: debug
+    com.hawkeye.auth.business.service: info
+    com.hawkeye.auth.api.controller: info
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.hawkeye.asset.common.pojo.entity
+
+server:
+  port: ${SERVER_PORT:8003}
