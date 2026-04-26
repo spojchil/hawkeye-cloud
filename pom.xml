@@ -43,7 +43,7 @@
 
         <!-- 数据库相关 -->
         <mysql.version>9.1.0</mysql.version>
-<!--        <mybatis-plus.version>3.5.15</mybatis-plus.version>-->
+        <mybatis-plus.version>3.5.15</mybatis-plus.version>
         <mybatis.version>4.0.1</mybatis.version>
 
         <druid.version>1.2.38</druid.version>
@@ -64,8 +64,6 @@
         <jjwt.version>0.12.6</jjwt.version>
         <fastjson2.version>2.0.53</fastjson2.version>
         <easyexcel.version>4.0.3</easyexcel.version>
-        <pagehelper.version>4.0.0</pagehelper.version>
-
         <!-- 测试相关 -->
         <mockito.version>5.12.0</mockito.version>
         <testcontainers.version>2.0.3</testcontainers.version>
@@ -113,16 +111,18 @@
             </dependency>
 
             <!-- MyBatis Plus -->
-<!--            <dependency>-->
-<!--                <groupId>com.baomidou</groupId>-->
-<!--                <artifactId>mybatis-plus-boot-starter</artifactId>-->
-<!--                <version>${mybatis-plus.version}</version>-->
-<!--            </dependency>-->
-
             <dependency>
-                <groupId>org.mybatis.spring.boot</groupId>
-                <artifactId>mybatis-spring-boot-starter</artifactId>
-                <version>${mybatis.version}</version>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <!-- 3.5.14+ 将 TenantLineInnerInterceptor、PaginationInnerInterceptor 等
+                 需要 JSqlParser 的拦截器拆分到了独立模块 mybatis-plus-jsqlparser，
+                 不再打包在 mybatis-plus-extension 中，必须显式添加此依赖 -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser</artifactId>
+                <version>${mybatis-plus.version}</version>
             </dependency>
 
             <!-- Druid 连接池 -->
@@ -274,12 +274,7 @@
                 <scope>test</scope>
             </dependency>
 
-            <!-- 分页插件 -->
-            <dependency>
-                <groupId>com.github.pagehelper</groupId>
-                <artifactId>pagehelper-spring-boot-starter</artifactId>
-                <version>${pagehelper.version}</version>
-            </dependency>
+
 
         </dependencies>
     </dependencyManagement>

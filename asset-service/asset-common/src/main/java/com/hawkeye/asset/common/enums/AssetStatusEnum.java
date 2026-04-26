@@ -1,8 +1,8 @@
 package com.hawkeye.asset.common.enums;
 
-import com.common.utils.enums.CodeEnum;
+import com.baomidou.mybatisplus.annotation.IEnum;
 
-public enum AssetStatusEnum implements CodeEnum {
+public enum AssetStatusEnum implements IEnum<Integer> {
     DISABLED(0, "禁用"),
     ENABLED(1, "启用"),
     DEPRECATED(2, "弃用");
@@ -16,11 +16,10 @@ public enum AssetStatusEnum implements CodeEnum {
     }
 
     @Override
-    public int getCode() {
+    public Integer getValue() {
         return this.code;
     }
 
-    @Override
     public String getDesc() {
         return this.desc;
     }

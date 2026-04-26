@@ -1,16 +1,16 @@
 package com.hawkeye.asset.common.enums;
 
-import com.common.utils.enums.CodeEnum;
+import com.baomidou.mybatisplus.annotation.IEnum;
 
-public enum RequestMethodEnum implements CodeEnum {
-    GET(0, "GET"),        // 获取资源
-    HEAD(1, "HEAD"),       // 获取响应头
-    POST(2, "POST"),       // 创建资源
-    PUT(3, "PUT"),        // 更新资源
-    PATCH(4, "PATCH"),      // 部分更新
-    DELETE(5, "DELETE"),     // 删除资源
-    OPTIONS(6, "OPTIONS"),    // 获取支持的请求方法
-    TRACE(7, "TRACE");      // 追踪请求
+public enum RequestMethodEnum implements IEnum<Integer> {
+    GET(0, "GET"),
+    HEAD(1, "HEAD"),
+    POST(2, "POST"),
+    PUT(3, "PUT"),
+    PATCH(4, "PATCH"),
+    DELETE(5, "DELETE"),
+    OPTIONS(6, "OPTIONS"),
+    TRACE(7, "TRACE");
 
     private final int code;
     private final String desc;
@@ -21,11 +21,10 @@ public enum RequestMethodEnum implements CodeEnum {
     }
 
     @Override
-    public int getCode() {
+    public Integer getValue() {
         return this.code;
     }
 
-    @Override
     public String getDesc() {
         return this.desc;
     }

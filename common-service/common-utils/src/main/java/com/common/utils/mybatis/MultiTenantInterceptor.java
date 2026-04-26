@@ -1,38 +1,39 @@
 package com.common.utils.mybatis;
 
+import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
 import com.common.utils.constant.HeaderConstants;
 import com.common.utils.context.RequestContext;
-import org.apache.ibatis.executor.statement.StatementHandler;
-import org.apache.ibatis.mapping.BoundSql;
-import org.apache.ibatis.mapping.MappedStatement;
-import org.apache.ibatis.plugin.Interceptor;
-import org.apache.ibatis.plugin.Intercepts;
-import org.apache.ibatis.plugin.Invocation;
-import org.apache.ibatis.plugin.Signature;
-import org.apache.ibatis.reflection.MetaObject;
-import org.apache.ibatis.reflection.SystemMetaObject;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.LongValue;
+import org.springframework.stereotype.Component;
 
-import java.sql.Connection;
+/**
+ * 多租户拦截器 — 适配 MyBatis-Plus 3.5.14+
+ *
+ * ★ 坑点记录：
+ * 1. 旧版（3.5.5 及之前）是 implements Interceptor，手动拦截 StatementHandler.prepare
+ *    通过字符串替换 sql 添加 "where tenant_id = ?"，存在 SQL 注入风险且不支持 INSERT 自动拼装。
+ * 2. MyBatis-Plus 3.5.14+ 将 TenantLineHandler/TenantLineInnerInterceptor 从
+ *    mybatis-plus-extension 移到了 mybatis-plus-jsqlparser 模块，pom.xml 必须额外引入。
+ * 3. 现在实现 TenantLineHandler 接口，由 TenantLineInnerInterceptor 自动通过 JSqlParser
+ *    修改 AST，安全地给 SELECT/UPDATE/DELETE 加 tenant_id 条件，给 INSERT 自动填充列。
+ */
+@Component
+public class MultiTenantInterceptor implements TenantLineHandler {
 
-@Intercepts(@Signature(type = StatementHandler.class, method = "prepare", args = {Connection.class, Integer.class}))
-public class MultiTenantInterceptor implements Interceptor {
     @Override
-    public Object intercept(Invocation invocation) throws Throwable {
+    public Expression getTenantId() {
         String tenantId = RequestContext.getHeader(HeaderConstants.HEADER_TENANT_ID);
-        if (tenantId != null) {
-            StatementHandler handler = (StatementHandler) invocation.getTarget();
-            MetaObject meta = SystemMetaObject.forObject(handler);
-            MappedStatement ms = (MappedStatement) meta.getValue("delegate.mappedStatement");
-            // 拦截需要多租户的 SQL
-            BoundSql boundSql = handler.getBoundSql();
-            String sql = boundSql.getSql();
-            if (sql.toLowerCase().contains("where")) {
-                sql = sql.replace("where", "where tenant_id = '" + tenantId + "' and ");
-            } else {
-                sql = sql + " where tenant_id = '" + tenantId + "'";
-            }
-            // 通过反射修改 BoundSql（或使用动态 SQL 加参数更优雅）
-        }
-        return invocation.proceed();
+        return new LongValue(tenantId != null ? Long.parseLong(tenantId) : 1L);
+    }
+
+    @Override
+    public String getTenantIdColumn() {
+        return "tenant_id";
+    }
+
+    @Override
+    public boolean ignoreTable(String tableName) {
+        return false;
     }
 }
