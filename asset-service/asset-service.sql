@@ -25,7 +25,7 @@ create table if not exists asset
     create_by        bigint comment '创建人ID',
     update_by        bigint comment '更新人ID',
 
-    unique index uk_tenant_asset (tenant_id, request_protocol, request_host, request_port, request_path(200)),
+#     unique index uk_tenant_asset (tenant_id, request_protocol, request_host, request_port, request_path(200)), 开销大而且无必要
     index idx_tenant_host (tenant_id, request_host(100)),
     index idx_tenant_del_status (tenant_id, deleted, status),
     index idx_tenant_scan_time (tenant_id, last_scan_time),
