@@ -113,7 +113,7 @@
             <!-- MyBatis Plus -->
             <dependency>
                 <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <artifactId>mybatis-plus-spring-boot4-starter</artifactId> <!-- 之前锁定错版本了，真难排查 -->
                 <version>${mybatis-plus.version}</version>
             </dependency>
             <!-- 3.5.14+ 将 TenantLineInnerInterceptor、PaginationInnerInterceptor 等
