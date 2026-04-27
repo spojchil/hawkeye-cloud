@@ -34,6 +34,13 @@ spring:
               filters:
                 - StripPrefix=1
 
+            - id: asset-service
+              uri: lb://asset-service
+              predicates:
+                - Path=/api/asset/**
+              filters:
+                - StripPrefix=1
+
           # CORS 统一在这里配置
           globalcors:
             cors-configurations:
@@ -66,7 +73,7 @@ server:
 
 # 定义一个统一的日志级别变量
 custom:
-  log-level: INFO
+  log-level: DEBUG
 
 logging:
   level:

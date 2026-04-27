@@ -21,6 +21,7 @@
         <module>common-service</module>
         <module>gateway-service</module>
         <module>auth-service</module>
+        <module>asset-service</module>
     </modules>
 
     <properties>
@@ -42,7 +43,7 @@
 
         <!-- 数据库相关 -->
         <mysql.version>9.1.0</mysql.version>
-<!--        <mybatis-plus.version>3.5.15</mybatis-plus.version>-->
+        <mybatis-plus.version>3.5.15</mybatis-plus.version>
         <mybatis.version>4.0.1</mybatis.version>
 
         <druid.version>1.2.38</druid.version>
@@ -63,7 +64,6 @@
         <jjwt.version>0.12.6</jjwt.version>
         <fastjson2.version>2.0.53</fastjson2.version>
         <easyexcel.version>4.0.3</easyexcel.version>
-
         <!-- 测试相关 -->
         <mockito.version>5.12.0</mockito.version>
         <testcontainers.version>2.0.3</testcontainers.version>
@@ -111,16 +111,18 @@
             </dependency>
 
             <!-- MyBatis Plus -->
-<!--            <dependency>-->
-<!--                <groupId>com.baomidou</groupId>-->
-<!--                <artifactId>mybatis-plus-boot-starter</artifactId>-->
-<!--                <version>${mybatis-plus.version}</version>-->
-<!--            </dependency>-->
-
             <dependency>
-                <groupId>org.mybatis.spring.boot</groupId>
-                <artifactId>mybatis-spring-boot-starter</artifactId>
-                <version>${mybatis.version}</version>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot4-starter</artifactId> <!-- 之前锁定错版本了，真难排查 -->
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <!-- 3.5.14+ 将 TenantLineInnerInterceptor、PaginationInnerInterceptor 等
+                 需要 JSqlParser 的拦截器拆分到了独立模块 mybatis-plus-jsqlparser，
+                 不再打包在 mybatis-plus-extension 中，必须显式添加此依赖 -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser</artifactId>
+                <version>${mybatis-plus.version}</version>
             </dependency>
 
             <!-- Druid 连接池 -->
@@ -164,19 +166,19 @@
                 <version>${rocketmq.version}</version>
             </dependency>
 
-<!--            &lt;!&ndash; MapStruct 对象映射 &ndash;&gt;-->
-<!--            <dependency>-->
-<!--                <groupId>org.mapstruct</groupId>-->
-<!--                <artifactId>mapstruct</artifactId>-->
-<!--                <version>${mapstruct.version}</version>-->
-<!--            </dependency>-->
+            <!-- MapStruct 对象映射 -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
 
-<!--            <dependency>-->
-<!--                <groupId>org.mapstruct</groupId>-->
-<!--                <artifactId>mapstruct-processor</artifactId>-->
-<!--                <version>${mapstruct.version}</version>-->
-<!--                <scope>provided</scope>-->
-<!--            </dependency>-->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+                <scope>provided</scope>
+            </dependency>
 
             <!-- 工具类库 -->
             <dependency>
@@ -271,6 +273,9 @@
                 <version>${testcontainers.version}</version>
                 <scope>test</scope>
             </dependency>
+
+
+
         </dependencies>
     </dependencyManagement>
 
@@ -294,11 +299,11 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
-<!--        &lt;!&ndash; MapStruct 核心 &ndash;&gt;-->
-<!--        <dependency>-->
-<!--            <groupId>org.mapstruct</groupId>-->
-<!--            <artifactId>mapstruct</artifactId>-->
-<!--        </dependency>-->
+        <!-- MapStruct 核心 -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
 
         <!-- 测试依赖 -->
         <dependency>
@@ -326,18 +331,18 @@
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
                         </path>
-<!--                        &lt;!&ndash; MapStruct &ndash;&gt;-->
-<!--                        <path>-->
-<!--                            <groupId>org.mapstruct</groupId>-->
-<!--                            <artifactId>mapstruct-processor</artifactId>-->
-<!--                            <version>${mapstruct.version}</version>-->
-<!--                        </path>-->
+                        <!-- MapStruct -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
                     </annotationProcessorPaths>
-<!--                    <compilerArgs>-->
-<!--                        <arg>-Amapstruct.suppressGeneratorTimestamp=true</arg>-->
-<!--                        <arg>-Amapstruct.defaultComponentModel=spring</arg>-->
-<!--                        <arg>-Amapstruct.unmappedTargetPolicy=IGNORE</arg>-->
-<!--                    </compilerArgs>-->
+                    <compilerArgs>
+                        <arg>-Amapstruct.suppressGeneratorTimestamp=true</arg>
+                        <arg>-Amapstruct.defaultComponentModel=spring</arg>
+                        <arg>-Amapstruct.unmappedTargetPolicy=IGNORE</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
 

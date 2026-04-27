@@ -1,12 +1,10 @@
 package com.hawkeye.auth.business.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.hawkeye.auth.common.pojo.entity.Account;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Select;
 
 @Mapper
-public interface AuthMapper {
+public interface AuthMapper extends BaseMapper<Account> {
 
-    @Select("select * from account where username = #{username}")
-    Account selectByUsername(String username);
 }

@@ -3,6 +3,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 .kotlin
+**/ddocs
+AGENTS.md
+CODE_REVIEW.md
 
 ### IntelliJ IDEA ###
 .idea/

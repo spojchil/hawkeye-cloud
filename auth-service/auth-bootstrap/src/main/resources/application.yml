@@ -49,13 +49,20 @@ spring:
 logging:
   level:
     com.hawkeye.auth.business.mapper: debug
-    com.hawkeye.auth.business.service: info
-    com.hawkeye.auth.api.controller: info
+    com.hawkeye.auth.business.service: debug
+    com.hawkeye.auth.api.controller: debug
 
-mybatis:
+# ★ MyBatis → MyBatis-Plus 迁移，详情见 asset-service 中的注释
+mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
+    default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.hawkeye.auth.common.pojo.entity
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
 server:
   port: ${SERVER_PORT:8002}
