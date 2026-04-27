@@ -52,22 +52,25 @@ public class AuthFilter implements GlobalFilter, Ordered {
         }
 
         // 3. 校验Token（黑名单+合法性+过期）
-        boolean isValid = jwtUtils.validateToken(token);
-        if (!isValid) {
-            return unauthorizedResponse(exchange, "Token无效或已失效");
-        }
+        //    使用 flatMap 响应式链式处理，避免 block() 阻塞 Netty reactor 线程
+        return jwtUtils.validateToken(token)
+                .flatMap(isValid -> {
+                    if (!isValid) {
+                        return unauthorizedResponse(exchange, "Token无效或已失效");
+                    }
 
-        // 4. 解析账号ID、租户ID
-        String accountId = jwtUtils.getAccountIdFromToken(token);
-        Long tenantId = jwtUtils.getTenantIdFromToken(token);
+                    // 4. 解析账号ID、租户ID
+                    String accountId = jwtUtils.getAccountIdFromToken(token);
+                    Long tenantId = jwtUtils.getTenantIdFromToken(token);
 
-        // 5. 将用户信息写入请求头，转发给下游微服务
-        ServerHttpRequest.Builder requestBuilder = request.mutate()
-                .header(GatewayConstants.ACCOUNT_ID_HEADER, accountId)
-                .header(GatewayConstants.TENANT_ID_HEADER, String.valueOf(tenantId));
+                    // 5. 将用户信息写入请求头，转发给下游微服务
+                    ServerHttpRequest.Builder requestBuilder = request.mutate()
+                            .header(GatewayConstants.ACCOUNT_ID_HEADER, accountId)
+                            .header(GatewayConstants.TENANT_ID_HEADER, String.valueOf(tenantId));
 
-        // 6. 放行请求
-        return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
+                    // 6. 放行请求
+                    return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
+                });
     }
 
     /**

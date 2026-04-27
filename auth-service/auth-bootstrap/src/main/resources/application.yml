@@ -49,8 +49,8 @@ spring:
 logging:
   level:
     com.hawkeye.auth.business.mapper: debug
-    com.hawkeye.auth.business.service: info
-    com.hawkeye.auth.api.controller: info
+    com.hawkeye.auth.business.service: debug
+    com.hawkeye.auth.api.controller: debug
 
 # ★ MyBatis → MyBatis-Plus 迁移，详情见 asset-service 中的注释
 mybatis-plus:

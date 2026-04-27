@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import reactor.core.publisher.Mono;
+
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -95,15 +97,18 @@ public class JwtUtils {
 
     /**
      * 校验Token有效性（黑名单 + 合法性 + 过期时间）
+     * 返回 Mono 而非 boolean：Gateway 跑在 Netty reactor 线程上，Redis 黑名单查询是
+     * 异步的，.block() 会导致 "block() are blocking" IllegalStateException。
      */
-    public boolean validateToken(String token) {
-        // 1. 检查是否在黑名单（主动失效）
-        if (isTokenInBlacklist(token)) {
-            log.warn("JWT Token已被加入黑名单，强制失效");
-            return false;
-        }
-        // 2. 解析并校验Token
-        return parseToken(token) != null;
+    public Mono<Boolean> validateToken(String token) {
+        return isTokenInBlacklist(token)
+                .flatMap(inBlacklist -> {
+                    if (inBlacklist) {
+                        log.warn("JWT Token已被加入黑名单，强制失效");
+                        return Mono.just(false);
+                    }
+                    return Mono.just(parseToken(token) != null);
+                });
     }
 
     /**
@@ -135,16 +140,14 @@ public class JwtUtils {
     }
 
     /**
-     * 检查Token是否在黑名单中
+     * 检查Token是否在黑名单中（响应式，不阻塞 Netty 事件循环）
      */
-    public boolean isTokenInBlacklist(String token) {
+    public Mono<Boolean> isTokenInBlacklist(String token) {
         if (token == null || token.isBlank()) {
-            return false;
+            return Mono.just(false);
         }
         String key = JWT_BLACKLIST_PREFIX + token;
-        // 响应式判断是否存在
-        Boolean exists = reactiveStringRedisTemplate.hasKey(key).block();
-        return Boolean.TRUE.equals(exists);
+        return reactiveStringRedisTemplate.hasKey(key).map(Boolean.TRUE::equals);
     }
 
     /**

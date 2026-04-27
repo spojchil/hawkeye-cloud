@@ -42,9 +42,11 @@
             <artifactId>jjwt-jackson</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- 密码加密：仅需 BCryptPasswordEncoder，不引入全套 Security 自配置
+             （避免多余的表单登录、HTTP Basic 和 Generated security password） -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
         </dependency>
     </dependencies>
 

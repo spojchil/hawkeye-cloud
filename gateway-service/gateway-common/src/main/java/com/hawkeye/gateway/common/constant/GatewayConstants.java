@@ -14,11 +14,12 @@ public interface GatewayConstants {
     String TENANT_ID_HEADER = "tenant-id";   // 租户ID
 
     /**
-     * 白名单
+     * 白名单：路径必须带 /api 前缀，因为 AuthFilter（order=0）在 StripPrefix（order=1）
+     * 之前执行，此时看到的请求路径尚未去除 /api 前缀。
      */
     String[] WHITE_LIST = {
-            "/auth/login",       // 登录接口
-            "/auth/register",    // 注册接口
+            "/api/auth/login",       // 登录接口
+            "/api/auth/register",    // 注册接口
             "/doc.html",         // swagger
             "/webjars/**",
             "/v3/api-docs/**"
