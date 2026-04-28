@@ -2,9 +2,7 @@ package com.hawkeye.asset.api.controller;
 
 import com.common.utils.response.ApiResponse;
 import com.common.utils.response.ListResult;
-import com.hawkeye.asset.business.mapstruct.AssetMapstruct;
 import com.hawkeye.asset.business.service.AssetService;
-import com.hawkeye.asset.common.pojo.DTO.AssetPageQueryDTO;
 import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
 import com.hawkeye.asset.common.pojo.vo.asset.PageAssetVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,13 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "资产管理")
 public class AssetController {
     private final AssetService assetService;
-    private final AssetMapstruct assetMapstruct;
 
     @GetMapping
-    @Operation(summary = "分页查询资产")  // 新版使用@ParameterObject拆分展示
+    @Operation(summary = "分页查询资产")
     public ApiResponse<ListResult<PageAssetVO.Response>> pageQuery(@ParameterObject PageAssetVO.Request request) {
-        AssetPageQueryDTO assetPageQueryDTO = assetMapstruct.toAssetPageQueryDTO(request);
-        return ApiResponse.success(assetService.pageQuery(assetPageQueryDTO));
+        return ApiResponse.success(assetService.pageQuery(request));
     }
 
     @GetMapping("/{assetId}")
