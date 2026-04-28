@@ -9,7 +9,7 @@ CODE_REVIEW.md
 
 ### IntelliJ IDEA ###
 .idea/
-*.imi
+**/*.iml
 
 ### Eclipse ###
 .apt_generated
@@ -35,5 +35,3 @@ build/
 
 ### Mac OS ###
 .DS_Store
-/hawkeye-cloud.iml
-/vul-service.iml
