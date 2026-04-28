@@ -5,35 +5,26 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.github.spojchil</groupId>
-        <artifactId>gateway-service</artifactId>
+        <artifactId>vul-service</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>gateway-bootstrap</artifactId>
+    <artifactId>vul-bootstrap</artifactId>
 
     <dependencies>
         <dependency>
             <groupId>io.github.spojchil</groupId>
-            <artifactId>gateway-business</artifactId>
+            <artifactId>vul-api</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
-
-        <!-- Spring Cloud 服务发现支持 -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter</artifactId>
         </dependency>
 
-        <!-- Nacos 服务注册与配置中心 -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
-        </dependency>
-
-        <!-- 负载均衡 -->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
     </dependencies>
 

@@ -1,0 +1,7 @@
+**/.git
+**/.idea
+**/docs
+**/ddocs
+**/target/*.jar.original
+**/*.md
+**/.gitignore

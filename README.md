@@ -20,7 +20,9 @@
 | API 文档 | Knife4j | 4.4.0 |
 | 对象映射 | MapStruct | 1.6.3 |
 | JWT | JJWT | 0.12.6 |
-| 测试 | Testcontainers + Mockito + JUnit 5 | - |
+| 测试 | JUnit 5 + Mockito + Testcontainers | - |
+| 容器 | Docker + Docker Compose | - |
+| CI/CD | GitHub Actions | - |
 
 ## 架构概览
 
@@ -56,11 +58,13 @@ vul-service ───(漏洞模板)───┘       预处理队列           
 
 ```
 hawkeye-cloud/
+├── .github/workflows/               # CI/CD 流水线
 ├── common-service/common-utils/     # 公共基础设施（统一响应、多租户、分页、异常、日志切面）
 ├── gateway-service/                 # API 网关 (:8001)
 ├── auth-service/                    # 认证服务 (:8002)
 ├── asset-service/                   # 资产服务 (:8003)
 ├── vul-service/                     # 漏洞管理服务 (:8004)
+├── docker-compose.yml               # 容器编排
 ├── task-service/                    # 任务调度服务 (:8005)
 ├── detection-service/               # 检测执行服务 (:8006+)
 ├── tenant-service/                  # 租户管理服务 (:8007)
@@ -73,14 +77,31 @@ hawkeye-cloud/
 
 ## 快速开始
 
-**前置条件：** JDK 21、Maven 3.9+、MySQL 9.1、Redis、RocketMQ 5.x、Nacos 2.x
+**方式一：Docker Compose 一键启动（推荐）**
+
+```bash
+# 打包 jar
+mvn clean package -DskipTests
+
+# 启动全部：MySQL + Redis + Nacos + 4 个微服务
+docker compose up -d
+
+# 网关入口：http://localhost:8000
+# Nacos 控制台：http://localhost:8848/nacos
+```
+
+服务启动顺序由 `depends_on` + `healthcheck` 自动编排，无需手动干预。
+
+**方式二：本地启动**
+
+前置条件：JDK 21、Maven 3.9+、MySQL 9.1、Redis、Nacos 2.x
 
 ```bash
 # 编译全部模块
 mvn clean compile
 
-# 运行测试（默认跳过，需显式覆盖）
-mvn clean test -DskipTests=false
+# 运行测试
+mvn test
 
 # 打包
 mvn clean package -DskipTests
@@ -90,11 +111,33 @@ mvn -pl gateway-service/gateway-bootstrap spring-boot:run     # 网关 :8001
 mvn -pl auth-service/auth-bootstrap spring-boot:run           # 认证 :8002
 mvn -pl asset-service/asset-bootstrap spring-boot:run         # 资产 :8003
 mvn -pl vul-service/vul-bootstrap spring-boot:run             # 漏洞 :8004
-mvn -pl task-service/task-bootstrap spring-boot:run           # 任务 :8005
-mvn -pl detection-service/detection-bootstrap spring-boot:run # 检测 :8006
 ```
 
 仅使用 `dev` profile 启动，本地 Nacos 地址 `localhost:8848`。
+
+## CI/CD
+
+项目使用 GitHub Actions 自动构建流水线：
+
+```
+push to feature/*  → 编译 + 单元测试
+push to develop    → 编译 + 单元测试
+PR to main         → 编译 + 单元测试
+push to main       → 编译 + 单元测试 + 打包镜像 → ghcr.io
+```
+
+镜像仓库：[GitHub Container Registry](https://github.com/spojchil?tab=packages)
+
+## 容器镜像
+
+## 容器镜像
+
+| 服务 | 镜像 |
+|------|------|
+| Gateway | `ghcr.io/spojchil/hawkeye-gateway:latest` |
+| Auth | `ghcr.io/spojchil/hawkeye-auth:latest` |
+| Asset | `ghcr.io/spojchil/hawkeye-asset:latest` |
+| Vul | `ghcr.io/spojchil/hawkeye-vul:latest` |
 
 ## 开发进度
 
@@ -104,7 +147,7 @@ mvn -pl detection-service/detection-bootstrap spring-boot:run # 检测 :8006
 | gateway-service | ✅ 完成 | JWT 鉴权过滤器、路由转发、CORS、Redis 黑名单 |
 | auth-service | ✅ 完成（基础） | 登录认证、JWT 签发、BCrypt 密码加密 |
 | asset-service | ✅ 完成 | 资产 CRUD + 分类树管理，11 个 API 端点 |
-| vul-service | 📝 规划中 | 漏洞检测模板管理 |
+| vul-service | ✅ 基础配置 | 启动类 + Nacos 注册 + 数据源，业务待开发 |
 | task-service | 📝 规划中 | 任务调度：提交 → 拆分 → 分发 |
 | detection-service | 📝 规划中 | 检测 Worker：HTTP 探测 + 判定引擎 |
 | tenant-service | 📝 规划中 | 多租户管理 |

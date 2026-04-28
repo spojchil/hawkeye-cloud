@@ -1,0 +1,159 @@
+services:
+  # ==================== 基础设施 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: hawkeye-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: hawkeye
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./auth-service/account.sql:/docker-entrypoint-initdb.d/01-account.sql
+      - ./asset-service/asset-service.sql:/docker-entrypoint-initdb.d/02-asset.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - hawkeye-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: hawkeye-redis
+    command: redis-server --requirepass 123456
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - hawkeye-net
+
+  nacos:
+    image: nacos/nacos-server:v2.3.1
+    container_name: hawkeye-nacos
+    environment:
+      MODE: standalone
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - hawkeye-net
+
+  # ==================== 微服务 ====================
+  auth-service:
+    build: ./auth-service/auth-bootstrap
+    image: ghcr.io/spojchil/hawkeye-auth:latest
+    container_name: hawkeye-auth
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hawkeye
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: 123456
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      SERVER_PORT: 8002
+    ports:
+      - "8002:8002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - hawkeye-net
+
+  asset-service:
+    build: ./asset-service/asset-bootstrap
+    image: ghcr.io/spojchil/hawkeye-asset:latest
+    container_name: hawkeye-asset
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hawkeye
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      SERVER_PORT: 8003
+    ports:
+      - "8003:8003"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - hawkeye-net
+
+  vul-service:
+    build: ./vul-service/vul-bootstrap
+    image: ghcr.io/spojchil/hawkeye-vul:latest
+    container_name: hawkeye-vul
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hawkeye
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      SERVER_PORT: 8004
+    ports:
+      - "8004:8004"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - hawkeye-net
+
+  gateway:
+    build: ./gateway-service/gateway-bootstrap
+    image: ghcr.io/spojchil/hawkeye-gateway:latest
+    container_name: hawkeye-gateway
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: 123456
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      SERVER_PORT: 8001
+    ports:
+      - "8000:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - hawkeye-net
+
+networks:
+  hawkeye-net:
+    driver: bridge
+
+volumes:
+  mysql-data:
