@@ -9,6 +9,7 @@ CODE_REVIEW.md
 
 ### IntelliJ IDEA ###
 .idea/
+**/*.iml
 
 ### Eclipse ###
 .apt_generated

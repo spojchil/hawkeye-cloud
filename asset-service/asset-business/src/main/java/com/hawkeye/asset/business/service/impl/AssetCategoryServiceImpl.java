@@ -12,9 +12,12 @@ import com.hawkeye.asset.common.pojo.entity.AssetCategory;
 import com.hawkeye.asset.common.pojo.entity.AssetCategoryMapping;
 import com.hawkeye.asset.common.pojo.vo.category.CategoryVO;
 import com.common.utils.response.ApiException;
+import com.common.utils.response.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -78,7 +81,8 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
                 .set(request.getDescription() != null, AssetCategory::getDescription, request.getDescription());
 
         if (baseMapper.update(null, wrapper) == 0) {
-            throw new ApiException("分类不存在");
+            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "分类不存在",
+                    HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
         AssetCategory updated = baseMapper.selectById(categoryId);
@@ -86,16 +90,20 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
     }
 
     @Override
+    @Transactional
     public void delete(Long categoryId) {
         AssetCategory category = baseMapper.selectById(categoryId);
         if (category == null) {
-            throw new ApiException("分类不存在");
+            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "分类不存在",
+                    HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
         // 检查 1：是否存在子分类——存在则不允许删除，避免产生孤立节点
         long childCount = lambdaQuery().eq(AssetCategory::getParentId, categoryId).count();
         if (childCount > 0) {
-            throw new ApiException("该分类下存在子分类，无法删除");
+            throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
+                    "该分类下存在子分类，无法删除",
+                    HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
         // 检查 2：是否存在资产关联——有关联则不允许删除，避免产生悬空引用
@@ -103,7 +111,9 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
                 new LambdaQueryWrapper<AssetCategoryMapping>()
                         .eq(AssetCategoryMapping::getCategoryId, categoryId));
         if (mappingCount > 0) {
-            throw new ApiException("该分类下存在资产关联，无法删除");
+            throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
+                    "该分类下存在资产关联，无法删除",
+                    HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
         baseMapper.deleteById(categoryId);
@@ -114,11 +124,17 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
      * <p>
      * 先用一次 IN 查询查出已存在的关联，避免逐条 SELECT COUNT 的 N+1 问题，
      * 然后仅插入不存在的关联。
+     * <p>
+     * ★ 加 @Transactional：虽然 selectList + loop insert 在默认 READ_COMMITTED 下仍有并发去重漏洞，
+     * 但数据库层有唯一索引 uk_asset_category (asset_id, category_id) 兜底，
+     * 并发冲突时 MySQL 抛 DuplicateKeyException 事务回滚，不会产生脏数据。
      */
     @Override
+    @Transactional
     public int addAssets(Long categoryId, List<Long> assetIds) {
         if (baseMapper.selectById(categoryId) == null) {
-            throw new ApiException("分类不存在");
+            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "分类不存在",
+                    HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
         // 1. 一次 IN 查询查出所有已存在的 asset_id，避免 N+1

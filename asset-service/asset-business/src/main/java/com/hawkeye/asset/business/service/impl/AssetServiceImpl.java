@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.common.utils.response.ApiException;
+import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
 import com.hawkeye.asset.business.mapstruct.AssetMapstruct;
 import com.hawkeye.asset.business.mapper.AssetCategoryMappingMapper;
@@ -14,13 +15,14 @@ import com.hawkeye.asset.business.mapper.AssetMapper;
 import com.hawkeye.asset.business.service.AssetService;
 import com.hawkeye.asset.common.enums.AssetRiskEnum;
 import com.hawkeye.asset.common.enums.AssetStatusEnum;
-import com.hawkeye.asset.common.pojo.DTO.AssetPageQueryDTO;
 import com.hawkeye.asset.common.pojo.entity.Asset;
 import com.hawkeye.asset.common.pojo.entity.AssetCategoryMapping;
 import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
 import com.hawkeye.asset.common.pojo.vo.asset.PageAssetVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +44,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements AssetService {
 
+    /** 分页查询每页最大条数，防止恶意请求一次性查询过多数据 */
+    private static final int PAGE_SIZE_MAX = 100;
+
     private final AssetMapstruct assetMapstruct;
     private final AssetCategoryMappingMapper assetCategoryMappingMapper;
 
@@ -59,23 +64,27 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
      * <ul>
      *   <li>如果分类下没有资产（assetIds 为空），直接返回空结果，避免无意义的 IN (NULL) 查询</li>
      *   <li>分类过滤和其他字段过滤（名称、主机等）在同一层 WHERE 中通过 AND 组合</li>
+     *   <li>pageSize 上限 {@value #PAGE_SIZE_MAX}，超过自动截断</li>
      * </ul>
      */
     @Override
-    public ListResult<PageAssetVO.Response> pageQuery(AssetPageQueryDTO dto) {
-        // 构建基础查询条件（名称模糊匹配、主机模糊匹配、风险等级精确匹配、状态精确匹配）
+    public ListResult<PageAssetVO.Response> pageQuery(PageAssetVO.Request request) {
+        // pageSize 上限保护，防止一次查几万条
+        int pageSize = Math.min(request.getPageSize() != null ? request.getPageSize() : 10, PAGE_SIZE_MAX);
+        int pageNum = request.getPage() != null ? request.getPage() : 1;
+
         LambdaQueryWrapper<Asset> wrapper = new LambdaQueryWrapper<Asset>()
-                .like(StrUtil.isNotBlank(dto.getName()), Asset::getName, dto.getName())
-                .like(StrUtil.isNotBlank(dto.getRequestHost()), Asset::getRequestHost, dto.getRequestHost())
-                .eq(dto.getRiskLevel() != null, Asset::getRiskLevel, dto.getRiskLevel())
-                .eq(dto.getStatus() != null, Asset::getStatus, dto.getStatus())
+                .like(StrUtil.isNotBlank(request.getName()), Asset::getName, request.getName())
+                .like(StrUtil.isNotBlank(request.getRequestHost()), Asset::getRequestHost, request.getRequestHost())
+                .eq(request.getRiskLevel() != null, Asset::getRiskLevel, request.getRiskLevel())
+                .eq(request.getStatus() != null, Asset::getStatus, request.getStatus())
                 .orderByDesc(Asset::getName);
 
         // 分类过滤：先查出分类下的资产 ID 列表，再追加 IN 条件
-        if (dto.getCategoryId() != null) {
+        if (request.getCategoryId() != null) {
             List<Long> assetIds = assetCategoryMappingMapper.selectList(
                     new LambdaQueryWrapper<AssetCategoryMapping>()
-                            .eq(AssetCategoryMapping::getCategoryId, dto.getCategoryId())
+                            .eq(AssetCategoryMapping::getCategoryId, request.getCategoryId())
                             // 只查 assetId 列，减少数据传输
                             .select(AssetCategoryMapping::getAssetId)
             ).stream().map(AssetCategoryMapping::getAssetId).distinct().toList();
@@ -88,7 +97,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
         }
 
         // MyBatis-Plus 自动分页：自动拼接 COUNT 查询 + LIMIT
-        Page<Asset> page = new Page<>(dto.getPage(), dto.getPageSize());
+        Page<Asset> page = new Page<>(pageNum, pageSize);
         IPage<Asset> result = baseMapper.selectPage(page, wrapper);
 
         // Entity → VO 转换（使用 MapStruct 自动映射）
@@ -105,7 +114,8 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
     public AssetVO.Response getById(Long assetId) {
         Asset asset = baseMapper.selectById(assetId);
         if (asset == null) {
-            throw new ApiException("资产不存在");
+            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "资产不存在",
+                    HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
         return assetMapstruct.toResponseVO(asset);
     }
@@ -148,7 +158,8 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
                 .set(request.getRiskLevel() != null, Asset::getRiskLevel, request.getRiskLevel());
 
         if (baseMapper.update(null, wrapper) == 0) {
-            throw new ApiException("资产不存在");
+            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "资产不存在",
+                    HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
         Asset updated = baseMapper.selectById(assetId);
@@ -160,12 +171,18 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
      * <p>
      * 删除前需要检查该资产是否仍关联了分类，如果关联关系未清理则拒绝删除，
      * 避免在 {@code asset_category_mapping} 表中留下悬空引用。
+     * <p>
+     * ★ 添加 @Transactional：防止 selectCount 检查和 deleteById 之间的竞态条件。
+     * 虽然默认 READ_COMMITTED 无法阻止并发插入 mapping，但数据库层有唯一索引 uk_asset_category 兜底，
+     * 事务至少保证两个操作在同一连接内执行。
      */
     @Override
+    @Transactional
     public void delete(Long assetId) {
         Asset asset = baseMapper.selectById(assetId);
         if (asset == null) {
-            throw new ApiException("资产不存在");
+            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "资产不存在",
+                    HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
         // 检查是否还存在分类关联
@@ -173,7 +190,9 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
                 new LambdaQueryWrapper<AssetCategoryMapping>()
                         .eq(AssetCategoryMapping::getAssetId, assetId));
         if (mappingCount > 0) {
-            throw new ApiException("该资产存在分类关联，请先移除所有关联再删除");
+            throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
+                    "该资产存在分类关联，请先移除所有关联再删除",
+                    HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
         baseMapper.deleteById(assetId);
