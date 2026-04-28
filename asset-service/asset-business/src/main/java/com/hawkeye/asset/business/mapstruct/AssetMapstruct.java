@@ -1,6 +1,5 @@
 package com.hawkeye.asset.business.mapstruct;
 
-import com.hawkeye.asset.common.pojo.DTO.AssetPageQueryDTO;
 import com.hawkeye.asset.common.pojo.entity.Asset;
 import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
 import com.hawkeye.asset.common.pojo.vo.asset.PageAssetVO;
@@ -17,13 +16,10 @@ import org.mapstruct.Mapper;
  *   <li>{@code toEntity()} —— VO → Entity</li>
  *   <li>{@code toResponseVO()} —— Entity → VO（完整详情）</li>
  *   <li>{@code toListAssetVO()} —— Entity → VO（分页列表精简）</li>
- *   <li>{@code toAssetPageQueryDTO()} —— VO → DTO（分页参数转换）</li>
  * </ul>
  */
 @Mapper(componentModel = "spring")
 public interface AssetMapstruct {
-
-    AssetPageQueryDTO toAssetPageQueryDTO(PageAssetVO.Request request);
 
     PageAssetVO.Response toListAssetVO(Asset asset);
 
