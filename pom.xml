@@ -371,14 +371,11 @@
                 </configuration>
             </plugin>
 
-            <!-- 打包跳过测试 -->
+            <!-- Maven Surefire 测试插件：默认运行测试，命令行 -DskipTests=true 可跳过 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.1.2</version>
-                <configuration>
-                    <skipTests>true</skipTests>
-                </configuration>
             </plugin>
         </plugins>
     </build>
