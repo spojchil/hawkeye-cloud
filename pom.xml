@@ -347,11 +347,13 @@
                 </configuration>
             </plugin>
 
-            <!-- Spring Boot 插件 -->
+            <!-- Spring Boot 插件：父 POM 默认跳过 repackage，
+                 仅 bootstrap 模块通过 <skip>false</skip> 覆盖 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <skip>true</skip>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
