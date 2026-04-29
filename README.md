@@ -26,32 +26,112 @@
 
 ## 架构概览
 
-```
-客户端 → Gateway (:8001) ──JWT 鉴权 + 路由──► 下游微服务
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-   Auth (:8002)         Asset (:8003)          Task (:8005)
-   认证 + 权限           资产管理               任务调度入口
-        │                     │                     │
-   Tenant (:8007)        Vul (:8004)          RocketMQ
-   多租户管理              漏洞模板管理           分发检测消息
-        │                                          │
-   Audit (:8008)                              Detection (:8006+)
-   日志审计                                   检测 Worker（可多实例）
+```mermaid
+graph TD
+    Browser[浏览器 / 客户端] --> Nginx[Nginx<br/>反向代理 + 负载均衡]
+    Nginx --> GW
+
+    subgraph Gateway ["Gateway :8001"]
+        GW[路由转发 + CORS]
+        GW --> AuthFilter{AuthFilter<br/>JWT 鉴权}
+    end
+
+    AuthFilter -->|白名单 /api/auth/**| Auth
+    AuthFilter -->|非白名单<br/>校验 JWT + Redis 黑名单<br/>注入 X-ACCOUNT-ID / X-TENANT-ID| Route[路由转发]
+
+    subgraph Auth ["Auth :8002"]
+        AuthSvc[登录认证<br/>JWT 签发 + BCrypt]
+    end
+
+    subgraph Asset ["Asset :8003"]
+        AssetSvc[资产管理<br/>CRUD + 分类树]
+    end
+
+    subgraph Vul ["Vul :8004"]
+        VulSvc[漏洞模板管理<br/>CRUD + YAML 导入]
+    end
+
+    Route --> AssetSvc
+    Route --> TaskSvc
+
+    subgraph Task ["Task :8005"]
+        TaskSvc[任务调度引擎]
+        subgraph TaskInternal["内部异步线程池"]
+            Validate[校验]
+            Split[拆分 资产×漏洞]
+            Selector[MessageQueueSelector<br/>负载感知定向投递]
+        end
+    end
+
+    TaskSvc -->|RocketMQ 工作队列| Detection
+
+    subgraph Detection ["Detection :8006+"]
+        Worker1[Worker 1]
+        Worker2[Worker 2]
+        WorkerN[Worker N]
+        subgraph DetInternal["Worker 内部"]
+            Probe[HTTP 探测 + 匹配判定]
+            Batch[本地缓存 → 批量写 DB]
+        end
+    end
+
+    Detection -->|更新计数| Redis[(Redis<br/>completed/failed/remaining)]
+    TaskSvc -.->|轮询进度| Redis
+    TaskSvc -.->|获取资产数据| AssetSvc
+    TaskSvc -.->|获取漏洞模板| VulSvc
+
+    subgraph Tenant ["Tenant :8007"]
+        TenantSvc[多租户管理]
+    end
+
+    subgraph Audit ["Audit :8008"]
+        AuditSvc[日志审计]
+    end
+
+    Route --> TenantSvc
+    Route --> AuditSvc
 ```
 
 ### 核心检测链路
 
-```
-asset-service ──(资产信息)──┐
-                            ├──► task-service ──(RocketMQ)──► detection-service
-vul-service ───(漏洞模板)───┘       预处理队列                      工作队列
-                              (校验+拆分+分发)              (并发探测+负载上报)
-                                                                  │
-                                                           失败重试耗尽
-                                                                  ▼
-                                                             死信队列
+```mermaid
+graph LR
+    Client[客户端提交任务] -->|POST /task| TaskAPI
+
+    subgraph Task ["task-service :8005"]
+        TaskAPI[同步: 持久化任务<br/>status=PENDING]
+        TaskAPI --> Response[立刻返回 taskId]
+        ThreadPool[异步线程池]
+        Validate[校验资产 + 模板完整性]
+        SplitTask[拆分: 资产×漏洞 → task_item]
+        Selector[MessageQueueSelector<br/>查询 Redis 负载<br/>定向投递到低负载队列]
+        Validate --> SplitTask --> Selector
+    end
+
+    Selector -->|RocketMQ 工作队列<br/>含 taskId + itemId| RMQ{{RocketMQ}}
+
+    subgraph Detection ["detection-service :8006+"]
+        Consumer[消费 TaskItem]
+        Probe[HTTP 探测 + 匹配判定]
+        Cache[本地缓存结果]
+        Batch[批量写入 DB]
+        RedisWrite[更新 Redis 计数]
+        Consumer --> Probe --> Cache --> Batch
+        Probe -->|完成/失败| RedisWrite
+    end
+
+    RMQ --> Consumer
+
+    subgraph DLQ["死信处理"]
+        DLQQueue[%DLQ%<br/>RocketMQ 原生死信]
+        Compensate[补偿服务消费]
+    end
+
+    Consumer -.->|重试耗尽| DLQQueue --> Compensate
+
+    RedisWrite --> Redis[(Redis<br/>completed/failed/remaining)]
+    ThreadPool -.->|定时轮询进度| Redis
+    Redis -.->|completed >= total| TaskAPI
 ```
 
 ## 项目结构
@@ -119,11 +199,12 @@ mvn -pl vul-service/vul-bootstrap spring-boot:run             # 漏洞 :8004
 
 项目使用 GitHub Actions 自动构建流水线：
 
-```
-push to feature/*  → 编译 + 单元测试
-push to develop    → 编译 + 单元测试
-PR to main         → 编译 + 单元测试
-push to main       → 编译 + 单元测试 + 打包镜像 → ghcr.io
+```mermaid
+graph LR
+    PR[PR to main] --> CI1[编译 + 单测]
+    PushFeature[push to feature/*] --> CI2[编译 + 单测]
+    PushDev[push to develop] --> CI3[编译 + 单测]
+    PushMain[push to main] --> CI4[编译 + 单测 + 镜像打包] --> GHCR[ghcr.io]
 ```
 
 镜像仓库：[GitHub Container Registry](https://github.com/spojchil?tab=packages)
@@ -155,7 +236,7 @@ push to main       → 编译 + 单元测试 + 打包镜像 → ghcr.io
 
 ## 项目亮点
 
-- **三层队列调度引擎**：预处理 → 工作 → 死信，基于 RocketMQ 异步解耦
+- **异步任务调度引擎**：task-service 内部线程池编排（校验 → 拆分 → 分发）+ RocketMQ 工作队列 + 原生死信
 - **智能负载感知分发**：Worker 实时上报负载至 Redis，MessageQueueSelector 定向投递
 - **Java 21 虚拟线程**：Worker 高并发 HTTP 探测，I/O 密集型场景优势显著
 - **策略模式检测引擎**：不同漏洞类型对应不同匹配策略，符合开闭原则
