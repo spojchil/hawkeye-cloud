@@ -3,7 +3,7 @@ package com.hawkeye.detection.business.engine;
 import com.hawkeye.detection.business.mapper.DetectionResultMapper;
 import com.hawkeye.detection.common.pojo.entity.DetectionResult;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -25,9 +25,9 @@ public class ResultWriter {
     private final List<DetectionResult> buffer = new ArrayList<>();
 
     private final DetectionResultMapper mapper;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
-    public ResultWriter(DetectionResultMapper mapper, RedisTemplate<String, String> redisTemplate) {
+    public ResultWriter(DetectionResultMapper mapper, StringRedisTemplate redisTemplate) {
         this.mapper = mapper;
         this.redisTemplate = redisTemplate;
     }

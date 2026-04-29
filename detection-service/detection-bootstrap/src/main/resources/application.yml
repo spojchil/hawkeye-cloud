@@ -1,6 +1,8 @@
 spring:
   application:
     name: detection-service
+  main:
+    web-application-type: none
 
   profiles:
     active: dev
