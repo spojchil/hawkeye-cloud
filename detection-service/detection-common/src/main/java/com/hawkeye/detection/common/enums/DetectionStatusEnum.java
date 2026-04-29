@@ -3,14 +3,15 @@ package com.hawkeye.detection.common.enums;
 /**
  * 检测结果状态枚举。
  * <p>
- * 数据库存 TINYINT，通过 MybatisEnumTypeHandler 自动映射。
+ * 数据库存 VARCHAR，通过 name() 序列化（如 "SUCCESS" / "FAILED"）。
+ * detection_result 表 status 字段为 VARCHAR(20)，与实体 String status 对应。
  */
 public enum DetectionStatusEnum {
-    SUCCESS("成功"),   // HTTP 探测完成 + 匹配命中
-    FAILED("失败"),    // HTTP 探测完成 + 未命中
-    ERROR("错误"),     // 探测过程异常（超时、DNS 失败等）
-    TIMEOUT("超时"),   // HTTP 请求超时
-    UNKNOWN("未知");   // 未执行或其他
+    SUCCESS("成功"),
+    FAILED("失败"),
+    ERROR("错误"),
+    TIMEOUT("超时"),
+    UNKNOWN("未知");
 
     private final String desc;
 

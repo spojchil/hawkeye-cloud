@@ -36,7 +36,6 @@ public class VariableResolver {
         this.asset = asset;
         this.template = template;
         this.context = new HashMap<>();
-        initBuiltins();
         initTemplateVars();
     }
 
@@ -112,17 +111,6 @@ public class VariableResolver {
             return protocol + "://" + asset.getRequestHost();
         }
         return protocol + "://" + asset.getRequestHost() + ":" + port;
-    }
-
-    @SuppressWarnings("unchecked")
-    private void initBuiltins() {
-        context.put("body", "");
-        context.put("all_headers", "");
-        context.put("content_type", "");
-        context.put("content_length", 0);
-        context.put("status_code", 0);
-        context.put("duration", 0L);
-        context.put("set_cookie", "");
     }
 
     @SuppressWarnings("unchecked")

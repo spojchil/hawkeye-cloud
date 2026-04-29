@@ -1,6 +1,7 @@
 package com.hawkeye.detection.business.engine;
 
 import com.alibaba.fastjson2.JSON;
+import com.common.utils.annotation.LogExecutionTime;
 import com.hawkeye.detection.business.engine.model.HttpRequestConfig;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
 import com.hawkeye.detection.business.feign.AssetServiceFeign;
@@ -12,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -46,18 +46,22 @@ public class DetectionEngine {
 
     public DetectionEngine(TemplateFetcher templateFetcher,
                            AssetServiceFeign assetServiceFeign,
-                           ResultWriter resultWriter) {
+                           ResultWriter resultWriter,
+                           HttpExecutor httpExecutor,
+                           MatcherChain matcherChain,
+                           ExtractorChain extractorChain) {
         this.templateFetcher = templateFetcher;
         this.assetServiceFeign = assetServiceFeign;
         this.resultWriter = resultWriter;
-        this.httpExecutor = new HttpExecutor();
-        this.matcherChain = new MatcherChain();
-        this.extractorChain = new ExtractorChain();
+        this.httpExecutor = httpExecutor;
+        this.matcherChain = matcherChain;
+        this.extractorChain = extractorChain;
     }
 
     /**
      * 执行单条 task_item 的检测。
      */
+    @LogExecutionTime
     public void execute(TaskItemMessage message) {
         DetectionResult result = new DetectionResult();
         result.setTaskId(message.getTaskId());
@@ -66,27 +70,21 @@ public class DetectionEngine {
         result.setVulId(message.getVulId());
 
         try {
-            // 1. 获取模板
             VulTemplateDTO template = templateFetcher.fetch(message.getVulId());
             if (template == null) {
                 writeError(result, "模板不存在");
                 return;
             }
 
-            // 2. 获取资产
             AssetDTO asset = assetServiceFeign.getAsset(message.getAssetId()).getData();
             if (asset == null) {
                 writeError(result, "资产不存在");
                 return;
             }
 
-            // 3. 构建变量上下文
             VariableResolver resolver = new VariableResolver(asset, template);
-
-            // 4-7. 执行检测：单步 or 多步
             boolean matched = executeSteps(template, resolver);
 
-            // 8. 写入结果
             result.setStatus(matched ? "SUCCESS" : "NO_MATCH");
             Object dur = resolver.get("duration");
             result.setDurationMs(dur instanceof Long d ? d : 0L);
@@ -98,8 +96,14 @@ public class DetectionEngine {
             Thread.currentThread().interrupt();
             writeError(result, "HTTP 请求被中断");
         } catch (Exception e) {
-            log.warn("检测异常 taskId={} itemId={}: {}", message.getTaskId(), message.getItemId(), e.getMessage());
-            writeError(result, e.getMessage() != null ? e.getMessage() : "未知错误");
+            // ★ 输出完整堆栈，不能只吞 e.getMessage()——否则根因无法追溯
+            log.error("检测异常 taskId={} itemId={}: {}",
+                    message.getTaskId(), message.getItemId(), e.getMessage(), e);
+            try {
+                writeError(result, e.getMessage() != null ? e.getMessage() : "未知错误");
+            } catch (Exception ignored) {
+                // writeError 本身失败（如 Redis 断连），至少日志已输出
+            }
         }
     }
 

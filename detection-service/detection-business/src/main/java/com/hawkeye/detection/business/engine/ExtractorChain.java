@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import java.util.regex.Pattern;
  * 提取器链——从 HTTP 响应中提取变量，供多步骤模板的后续步骤使用。
  */
 @Slf4j
+@Component
 public class ExtractorChain {
 
     /**

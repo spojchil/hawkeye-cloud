@@ -9,6 +9,7 @@ import com.hawkeye.detection.business.engine.matcher.WordMatcher;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
 import com.hawkeye.detection.business.engine.model.MatcherConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ import java.util.Map;
  * 2. 内层 condition: "and" / "or"（matcher 内多条规则的关系）
  */
 @Slf4j
+@Component
 public class MatcherChain {
 
     private final List<MatcherStrategy> strategies = new ArrayList<>();
@@ -56,8 +58,9 @@ public class MatcherChain {
 
             List<MatcherConfig> configs = new ArrayList<>();
             for (Object item : list) {
-                MatcherConfig cfg = JSON.parseObject(JSON.toJSONString(item), MatcherConfig.class);
-                configs.add(cfg);
+                // ★ 不要 JSON.toJSONString + parseObject（二次序列化），
+                //    fastjson2 的 JSONObject 可直接转 Java Bean
+                configs.add(JSON.toJavaObject(item, MatcherConfig.class));
             }
 
             if ("and".equals(outerCondition)) {

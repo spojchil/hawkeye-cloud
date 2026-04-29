@@ -1,5 +1,6 @@
 package com.hawkeye.detection.business.consumer;
 
+import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.constant.HeaderConstants;
 import com.common.utils.context.RequestContext;
 import com.hawkeye.detection.business.engine.DetectionEngine;
@@ -34,12 +35,15 @@ public class TaskItemConsumer implements RocketMQListener<TaskItemMessage> {
     private final DetectionEngine detectionEngine;
 
     @Override
+    @LogExecutionTime
     public void onMessage(TaskItemMessage message) {
         log.debug("收到检测消息: taskId={}, itemId={}, assetId={}, vulId={}",
                 message.getTaskId(), message.getItemId(),
                 message.getAssetId(), message.getVulId());
 
-        // 设置租户上下文（Feign 调用 asset/vul service 时自动注入 Header）
+        // ★ ThreadLocal 在当前单线程消费场景下安全。
+        //    如果后续引入虚拟线程并发执行 detectionEngine.execute()，
+        //    需将 tenantId 显式传递给新线程，或使用 InheritableThreadLocal。
         if (message.getTenantId() != null) {
             RequestContext.setHeaders(Map.of(
                     HeaderConstants.HEADER_TENANT_ID, String.valueOf(message.getTenantId())));
@@ -48,7 +52,6 @@ public class TaskItemConsumer implements RocketMQListener<TaskItemMessage> {
         try {
             detectionEngine.execute(message);
         } finally {
-            // 清理 ThreadLocal，防止内存泄漏
             RequestContext.clear();
         }
     }

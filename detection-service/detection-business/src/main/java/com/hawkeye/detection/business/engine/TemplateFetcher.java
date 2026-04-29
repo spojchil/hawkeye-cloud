@@ -1,5 +1,6 @@
 package com.hawkeye.detection.business.engine;
 
+import com.common.utils.annotation.LogExecutionTime;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.hawkeye.detection.business.feign.VulServiceFeign;
@@ -34,6 +35,7 @@ public class TemplateFetcher {
                 .build();
     }
 
+    @LogExecutionTime
     public VulTemplateDTO fetch(Long vulId) {
         VulTemplateDTO cached = caffeineCache.getIfPresent(vulId);
         if (cached != null) return cached;

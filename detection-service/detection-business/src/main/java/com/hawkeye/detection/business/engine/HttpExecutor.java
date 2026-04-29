@@ -3,6 +3,7 @@ package com.hawkeye.detection.business.engine;
 import com.hawkeye.detection.business.engine.model.HttpRequestConfig;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URI;
@@ -18,8 +19,10 @@ import java.util.Map;
  * <p>
  * 使用 Java 11+ 内置 {@link java.net.http.HttpClient}，无需额外依赖。
  * 支持 Simple（method + path + headers + body）和 Raw（原始 HTTP 文本）两种模式。
+ * 注册为 Spring Bean 以便被 DetectionEngine 注入。
  */
 @Slf4j
+@Component
 public class HttpExecutor {
 
     private static final HttpClient CLIENT = HttpClient.newBuilder()

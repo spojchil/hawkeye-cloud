@@ -30,14 +30,14 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
-  # RocketMQ 消费者配置
-  rocketmq:
-    name-server: ${ROCKETMQ_HOST:localhost}:${ROCKETMQ_PORT:9876}
-    consumer:
-      group: task_item_consumer_group
-      topic: task_item_topic
-      pull-batch-size: 32
-      max-reconsume-times: 16
+# RocketMQ 消费者配置（前缀为 rocketmq.，非 spring.rocketmq.）
+rocketmq:
+  name-server: ${ROCKETMQ_HOST:localhost}:${ROCKETMQ_PORT:9876}
+  consumer:
+    group: task_item_consumer_group
+    topic: task_item_topic
+    pull-batch-size: 32
+    max-reconsume-times: 16
 
 server:
   port: ${SERVER_PORT:8006}

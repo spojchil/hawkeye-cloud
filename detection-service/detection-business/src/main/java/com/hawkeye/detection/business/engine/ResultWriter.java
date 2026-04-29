@@ -1,5 +1,6 @@
 package com.hawkeye.detection.business.engine;
 
+import com.common.utils.annotation.LogExecutionTime;
 import com.hawkeye.detection.business.mapper.DetectionResultMapper;
 import com.hawkeye.detection.common.pojo.entity.DetectionResult;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,9 @@ import java.util.List;
  * 检测结果不逐条 INSERT，先写入本地缓冲区。
  * 缓冲区满 500 条或距上次 flush 超过 5s 时，批量写入 DB。
  * 每条结果完成后立即 INCR Redis 计数，供 task-service 轮询进度。
+ * <p>
+ * ★ 所有写方法为 synchronized，因为 write() 由 RocketMQ 多线程回调，
+ *   flushByTimeout() 由 @Scheduled 定时任务触发，共享同一个 buffer。
  */
 @Slf4j
 @Component
@@ -32,15 +36,11 @@ public class ResultWriter {
         this.redisTemplate = redisTemplate;
     }
 
-    /**
-     * 写入单条检测结果到本地缓冲区 + Redis 计数。
-     */
+    @LogExecutionTime
     public synchronized void write(DetectionResult result) {
         buffer.add(result);
 
-        // Redis 立即计数，不等批量 flush
-        String statusKey = result.getStatus();
-        String redisKey = "task:" + result.getTaskId() + ":" + statusKey.toLowerCase();
+        String redisKey = "task:" + result.getTaskId() + ":" + result.getStatus().toLowerCase();
         redisTemplate.opsForValue().increment(redisKey);
 
         if (buffer.size() >= FLUSH_SIZE) {
@@ -55,7 +55,7 @@ public class ResultWriter {
         }
     }
 
-    private void flush() {
+    private synchronized void flush() {
         if (buffer.isEmpty()) return;
         List<DetectionResult> snapshot = new ArrayList<>(buffer);
         buffer.clear();
