@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
@@ -48,7 +49,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
     private static final int PAGE_SIZE_MAX = 100;
 
     private final AssetMapstruct assetMapstruct;
-    private final AssetCategoryMappingMapper assetCategoryMappingMapper;
+    private final AssetCategoryMappingMapper mappingMapper;
 
     /**
      * 分页查询资产，支持多维筛选和分类过滤。
@@ -67,6 +68,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
      *   <li>pageSize 上限 {@value #PAGE_SIZE_MAX}，超过自动截断</li>
      * </ul>
      */
+    @LogExecutionTime("资产分页查询")
     @Override
     public ListResult<PageAssetVO.Response> pageQuery(PageAssetVO.Request request) {
         // pageSize 上限保护，防止一次查几万条
@@ -82,7 +84,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
 
         // 分类过滤：先查出分类下的资产 ID 列表，再追加 IN 条件
         if (request.getCategoryId() != null) {
-            List<Long> assetIds = assetCategoryMappingMapper.selectList(
+            List<Long> assetIds = mappingMapper.selectList(
                     new LambdaQueryWrapper<AssetCategoryMapping>()
                             .eq(AssetCategoryMapping::getCategoryId, request.getCategoryId())
                             // 只查 assetId 列，减少数据传输
@@ -110,6 +112,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
         return ListResult.result((int) result.getTotal(), voList);
     }
 
+    @LogExecutionTime("查询资产详情")
     @Override
     public AssetVO.Response getById(Long assetId) {
         Asset asset = baseMapper.selectById(assetId);
@@ -120,7 +123,9 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
         return assetMapstruct.toResponseVO(asset);
     }
 
+    @LogExecutionTime("创建资产")
     @Override
+    @Transactional
     public AssetVO.Response create(AssetVO.Request request) {
         Asset asset = assetMapstruct.toEntity(request);
 
@@ -142,8 +147,19 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
      * 使用 {@link LambdaUpdateWrapper} 的条件 SET，仅更新 request 中非 null 的字段，
      * null 字段不会覆盖数据库原有值。如果 assetId 不存在（update 影响 0 行）则抛异常。
      */
+    @LogExecutionTime("更新资产")
     @Override
+    @Transactional
     public AssetVO.Response update(Long assetId, AssetVO.Request request) {
+        // 校验：至少需要提供一个非 null 字段，否则 SQL 会变成只有 WHERE 没有 SET
+        if (request.getName() == null && request.getRequestMethod() == null
+                && request.getRequestProtocol() == null && request.getRequestHost() == null
+                && request.getRequestPort() == null && request.getRequestPath() == null
+                && request.getRequestHeader() == null && request.getDescription() == null
+                && request.getStatus() == null && request.getRiskLevel() == null) {
+            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(), "至少需要提供一个更新字段",
+                    HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
+        }
         LambdaUpdateWrapper<Asset> wrapper = new LambdaUpdateWrapper<Asset>()
                 .eq(Asset::getAssetId, assetId)
                 .set(request.getName() != null, Asset::getName, request.getName())
@@ -176,6 +192,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
      * 虽然默认 READ_COMMITTED 无法阻止并发插入 mapping，但数据库层有唯一索引 uk_asset_category 兜底，
      * 事务至少保证两个操作在同一连接内执行。
      */
+    @LogExecutionTime("删除资产")
     @Override
     @Transactional
     public void delete(Long assetId) {
@@ -186,7 +203,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
         }
 
         // 检查是否还存在分类关联
-        long mappingCount = assetCategoryMappingMapper.selectCount(
+        long mappingCount = mappingMapper.selectCount(
                 new LambdaQueryWrapper<AssetCategoryMapping>()
                         .eq(AssetCategoryMapping::getAssetId, assetId));
         if (mappingCount > 0) {

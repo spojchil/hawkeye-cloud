@@ -41,8 +41,8 @@ public class AssetVO {
         private String requestPath;
         private String requestHeader;
         private String description;
-        private AssetStatusEnum status = AssetStatusEnum.DISABLED;
-        private AssetRiskEnum riskLevel = AssetRiskEnum.UNKNOWN;
+        private AssetStatusEnum status;
+        private AssetRiskEnum riskLevel;
     }
 
     /**
