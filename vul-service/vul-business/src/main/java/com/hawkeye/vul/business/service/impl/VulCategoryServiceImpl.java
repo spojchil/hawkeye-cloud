@@ -150,9 +150,10 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
                         .in(VulCategoryMapping::getTemplateId, templateIds)
         ).stream().map(VulCategoryMapping::getTemplateId).toList());
 
+        // ★ existing 只含 DB 已有记录，不含本轮输入中的重复项，需要用 seen 做输入级去重
         List<VulCategoryMapping> newMappings = new ArrayList<>();
         for (Long templateId : templateIds) {
-            if (!existing.contains(templateId)) {
+            if (existing.add(templateId)) {
                 VulCategoryMapping mapping = new VulCategoryMapping();
                 mapping.setCategoryId(categoryId);
                 mapping.setTemplateId(templateId);
