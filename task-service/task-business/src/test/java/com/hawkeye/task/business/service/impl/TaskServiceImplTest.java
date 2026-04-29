@@ -60,9 +60,6 @@ class TaskServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        /*
-         * 用 spy 劫持 lambdaQuery() / lambdaUpdate()，Mockito 无法直接 mock 父类方法。
-         */
         taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemService));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
@@ -76,9 +73,6 @@ class TaskServiceImplTest {
         when(lambdaUpdateChain.set(any(), any())).thenReturn(lambdaUpdateChain);
         when(lambdaUpdateChain.update()).thenReturn(true);
 
-        /*
-         * MapStruct mock：用 thenAnswer 模拟字段拷贝
-         */
         when(taskMapstruct.toEntity(any(TaskVO.Request.class))).thenAnswer(inv -> {
             TaskVO.Request req = inv.getArgument(0);
             Task task = new Task();
@@ -172,7 +166,7 @@ class TaskServiceImplTest {
     @DisplayName("查询任务详情 — 任务存在，返回完整信息")
     void getByIdFound() {
         Task task = buildTask(5001L, "扫描任务", TaskStatusEnum.RUNNING, 100, 42, 3);
-        when(lambdaChain.one()).thenReturn(task);
+        when(taskMapper.selectById(5001L)).thenReturn(task);
 
         TaskVO.Response response = taskService.getById(5001L);
 
@@ -184,14 +178,12 @@ class TaskServiceImplTest {
                 () -> assertEquals(42, response.getCompletedItems()),
                 () -> assertEquals(3, response.getFailedItems())
         );
-        verify(lambdaChain).eq(any(), eq(5001L));
-        verify(lambdaChain).one();
     }
 
     @Test
     @DisplayName("查询任务详情 — 任务不存在，抛 ApiException（404）")
     void getByIdNotFound() {
-        when(lambdaChain.one()).thenReturn(null);
+        when(taskMapper.selectById(anyLong())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskService.getById(999L));
@@ -280,7 +272,6 @@ class TaskServiceImplTest {
         stubSelectPage(Collections.emptyList());
 
         taskService.pageQuery(request);
-        // selectPage 的第一个参数 pageSize 应为 100
         verify(taskMapper).selectPage(argThat(page -> {
             if (page instanceof com.baomidou.mybatisplus.extension.plugins.pagination.Page<?> mpPage) {
                 return mpPage.getSize() == 100;
@@ -292,22 +283,24 @@ class TaskServiceImplTest {
     // === 取消任务 cancel ===
 
     @Test
-    @DisplayName("取消任务 — PENDING 状态可取消，status → CANCELLED")
+    @DisplayName("取消任务 — PENDING 状态可取消，原子 UPDATE 成功")
     void cancelSuccess() {
-        Task task = buildTask(1L, "待取消", TaskStatusEnum.PENDING, 0, 0, 0);
-        when(lambdaChain.one()).thenReturn(task);
+        when(lambdaUpdateChain.update()).thenReturn(true);
 
         taskService.cancel(1L);
 
         verify(lambdaUpdateChain).eq(any(), eq(1L));
+        verify(lambdaUpdateChain).eq(any(), eq(TaskStatusEnum.PENDING));
         verify(lambdaUpdateChain).set(any(), eq(TaskStatusEnum.CANCELLED));
         verify(lambdaUpdateChain).update();
+        verify(taskMapper, never()).selectById(anyLong());
     }
 
     @Test
-    @DisplayName("取消任务 — 任务不存在，抛 ApiException（404）")
+    @DisplayName("取消任务 — 任务不存在，UPDATE 返回 0，selectById 返回 null，抛 404")
     void cancelNotFound() {
-        when(lambdaChain.one()).thenReturn(null);
+        when(lambdaUpdateChain.update()).thenReturn(false);
+        when(taskMapper.selectById(anyLong())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskService.cancel(999L));
@@ -316,14 +309,14 @@ class TaskServiceImplTest {
                 () -> assertEquals(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), ex.getCode()),
                 () -> assertEquals("任务不存在", ex.getMessage())
         );
-        verify(lambdaUpdateChain, never()).update();
     }
 
     @Test
-    @DisplayName("取消任务 — RUNNING 状态不可取消，抛 ApiException（400）")
+    @DisplayName("取消任务 — RUNNING 状态，UPDATE 返回 0，selectById 返回 RUNNING 任务，抛 400")
     void cancelNotPending() {
+        when(lambdaUpdateChain.update()).thenReturn(false);
         Task task = buildTask(1L, "运行中", TaskStatusEnum.RUNNING, 100, 42, 3);
-        when(lambdaChain.one()).thenReturn(task);
+        when(taskMapper.selectById(1L)).thenReturn(task);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskService.cancel(1L));
@@ -332,7 +325,6 @@ class TaskServiceImplTest {
                 () -> assertEquals(CommonErrorCode.PARAM_INVALID.getCode(), ex.getCode()),
                 () -> assertEquals("仅待执行状态的任务可取消", ex.getMessage())
         );
-        verify(lambdaUpdateChain, never()).update();
     }
 
     // === 查询运行中任务 ID listRunningTaskIds ===
@@ -351,9 +343,6 @@ class TaskServiceImplTest {
                 () -> assertEquals(1L, ids.get(0)),
                 () -> assertEquals(2L, ids.get(1))
         );
-        verify(lambdaChain).eq(any(), eq(TaskStatusEnum.RUNNING));
-        verify(lambdaChain).select((com.baomidou.mybatisplus.core.toolkit.support.SFunction<Task, ?>) any());
-        verify(lambdaChain).list();
     }
 
     @Test

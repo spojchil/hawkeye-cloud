@@ -2,6 +2,7 @@ package com.hawkeye.task.scheduler;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hawkeye.task.business.mapper.TaskMapper;
+import com.hawkeye.task.business.service.TaskService;
 import com.hawkeye.task.common.enums.TaskStatusEnum;
 import com.hawkeye.task.common.pojo.entity.Task;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class TaskProgressScheduler {
 
+    private final TaskService taskService;
     private final TaskMapper taskMapper;
     private final RedisTemplate<String, Object> redisTemplate;
 
@@ -37,13 +39,7 @@ public class TaskProgressScheduler {
 
     @Scheduled(fixedDelayString = "${task.progress.poll-interval-ms:2000}")
     public void pollProgress() {
-        List<Long> runningIds = taskMapper.selectList(
-                        new LambdaQueryWrapper<Task>()
-                                .eq(Task::getStatus, TaskStatusEnum.RUNNING)
-                                .select(Task::getTaskId))
-                .stream()
-                .map(Task::getTaskId)
-                .toList();
+        List<Long> runningIds = taskService.listRunningTaskIds();
 
         if (runningIds.isEmpty()) {
             return;

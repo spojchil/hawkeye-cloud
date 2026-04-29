@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapp
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.hawkeye.task.business.mapper.TaskItemMapper;
+import com.hawkeye.task.business.mapstruct.TaskItemMapstruct;
 import com.hawkeye.task.common.enums.TaskItemStatusEnum;
 import com.hawkeye.task.common.pojo.entity.TaskItem;
 import com.hawkeye.task.common.pojo.vo.task.TaskItemVO;
@@ -33,6 +34,8 @@ class TaskItemServiceImplTest {
     @Mock
     private TaskItemMapper taskItemMapper;
     @Mock
+    private TaskItemMapstruct taskItemMapstruct;
+    @Mock
     private LambdaQueryChainWrapper<TaskItem> lambdaChain;
 
     private TaskItemServiceImpl taskItemService;
@@ -46,11 +49,23 @@ class TaskItemServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        taskItemService = spy(new TaskItemServiceImpl());
+        taskItemService = spy(new TaskItemServiceImpl(taskItemMapstruct));
         ReflectionTestUtils.setField(taskItemService, "baseMapper", taskItemMapper);
 
         doReturn(lambdaChain).when(taskItemService).lambdaQuery();
         when(lambdaChain.eq(any(), any())).thenReturn(lambdaChain);
+
+        when(taskItemMapstruct.toResponseVO(any(TaskItem.class))).thenAnswer(inv -> {
+            TaskItem item = inv.getArgument(0);
+            TaskItemVO.Response resp = new TaskItemVO.Response();
+            resp.setItemId(item.getItemId());
+            resp.setTaskId(item.getTaskId());
+            resp.setAssetId(item.getAssetId());
+            resp.setVulId(item.getVulId());
+            resp.setStatus(item.getStatus());
+            resp.setResult(item.getResult());
+            return resp;
+        });
     }
 
     // === 更新检测结果 updateResult ===
@@ -59,8 +74,8 @@ class TaskItemServiceImplTest {
     @DisplayName("更新结果 — SUCCESS 状态回写成功")
     void updateResultSuccess() {
         TaskItem item = buildItem(100L, 5001L, 10L, 20L, TaskItemStatusEnum.PENDING, null);
-        when(lambdaChain.one()).thenReturn(item);
-        when(taskItemMapper.updateById(any(TaskItem.class))).thenReturn(1);
+        when(taskItemMapper.selectById(100L)).thenReturn(item);
+        when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
         request.setStatus(TaskItemStatusEnum.SUCCESS);
@@ -74,15 +89,15 @@ class TaskItemServiceImplTest {
                 () -> assertEquals(TaskItemStatusEnum.SUCCESS, response.getStatus()),
                 () -> assertEquals("{\"matched\":true,\"matcher\":\"word\"}", response.getResult())
         );
-        verify(taskItemMapper).updateById((TaskItem) any(TaskItem.class));
+        verify(taskItemMapper).updateById((TaskItem) any());
     }
 
     @Test
     @DisplayName("更新结果 — FAILED 状态回写（网络超时）")
     void updateResultFailed() {
         TaskItem item = buildItem(200L, 5001L, 30L, 40L, TaskItemStatusEnum.PENDING, null);
-        when(lambdaChain.one()).thenReturn(item);
-        when(taskItemMapper.updateById(any(TaskItem.class))).thenReturn(1);
+        when(taskItemMapper.selectById(200L)).thenReturn(item);
+        when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
         request.setStatus(TaskItemStatusEnum.FAILED);
@@ -91,15 +106,15 @@ class TaskItemServiceImplTest {
         TaskItemVO.Response response = taskItemService.updateResult(200L, request);
 
         assertEquals(TaskItemStatusEnum.FAILED, response.getStatus());
-        verify(taskItemMapper).updateById((TaskItem) any(TaskItem.class));
+        verify(taskItemMapper).updateById((TaskItem) any());
     }
 
     @Test
     @DisplayName("更新结果 — NO_MATCH 状态回写（检测未命中）")
     void updateResultNoMatch() {
         TaskItem item = buildItem(300L, 5002L, 50L, 60L, TaskItemStatusEnum.PENDING, null);
-        when(lambdaChain.one()).thenReturn(item);
-        when(taskItemMapper.updateById(any(TaskItem.class))).thenReturn(1);
+        when(taskItemMapper.selectById(300L)).thenReturn(item);
+        when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
         request.setStatus(TaskItemStatusEnum.NO_MATCH);
@@ -113,7 +128,7 @@ class TaskItemServiceImplTest {
     @Test
     @DisplayName("更新结果 — item 不存在，抛 ApiException（404）")
     void updateResultNotFound() {
-        when(lambdaChain.one()).thenReturn(null);
+        when(taskItemMapper.selectById(anyLong())).thenReturn(null);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
         request.setStatus(TaskItemStatusEnum.SUCCESS);

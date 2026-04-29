@@ -1,6 +1,7 @@
 package com.hawkeye.task.common.pojo.vo.task;
 
 import com.hawkeye.task.common.enums.TaskItemStatusEnum;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 public class TaskItemVO {
@@ -8,6 +9,7 @@ public class TaskItemVO {
     @Data
     public static class Request {
 
+        @NotNull(message = "状态不能为空")
         private TaskItemStatusEnum status;
 
         private String result;
