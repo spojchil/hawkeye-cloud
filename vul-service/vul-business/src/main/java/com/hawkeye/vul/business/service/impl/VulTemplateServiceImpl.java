@@ -65,6 +65,11 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                 .eq(request.getEnabled() != null, VulTemplate::getEnabled, request.getEnabled())
                 .orderByDesc(VulTemplate::getCreateTime);
 
+        /*
+         * tags 字段是逗号分隔字符串（如 "cve,xss,sqli"），用 LIKE 做子串匹配。
+         * 四种模式覆盖：仅 keyword、keyword 在开头、keyword 在中间、keyword 在末尾。
+         * 当前数据量 ~10,000 行，全表扫描可接受。数据量增大后可改为 vul_tags 关联表。
+         */
         if (StrUtil.isNotBlank(request.getTags())) {
             String keyword = request.getTags().trim();
             wrapper.and(w -> w.like(VulTemplate::getTags, keyword + ",%")
@@ -201,6 +206,11 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return dto;
     }
 
+    /**
+     * 按 YAML templateId 查询完整实体，仅用于导入去重（内部调用）。
+     * 返回实体而非 VO，因为调用方在同一模块内，需要访问 BaseEntity 字段。
+     * 外部请使用 {@link #getById(Long)} 获取 VO。
+     */
     @Override
     public VulTemplate getByTemplateId(String templateId) {
         return baseMapper.selectOne(

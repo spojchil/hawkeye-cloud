@@ -52,6 +52,7 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
     public List<VulCategoryVO.Response> listCategories(Long parentId, String name) {
         LambdaQueryWrapper<VulCategory> wrapper = new LambdaQueryWrapper<VulCategory>()
                 .eq(parentId != null, VulCategory::getParentId, parentId)
+                .isNull(parentId == null, VulCategory::getParentId)
                 .like(StrUtil.isNotBlank(name), VulCategory::getName, name)
                 .orderByAsc(VulCategory::getName);
 
@@ -160,9 +161,9 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
         }
 
         if (!newMappings.isEmpty()) {
-            for (VulCategoryMapping mapping : newMappings) {
-                mappingMapper.insert(mapping);
-            }
+            // ★ saveBatch 一次 SQL 批量插入，避免逐条 insert 的 N 次网络往返
+            //    MyBatis-Plus saveBatch 内部会自动设置 BaseEntity 字段（tenantId、createTime 等）
+            mappingMapper.insert(newMappings);
         }
         return newMappings.size();
     }
@@ -183,6 +184,10 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
     /**
      * 判断 targetId 是否是 categoryId 的祖先节点。
      * 从 targetId 出发沿 parentId 链向上追溯，检查是否经过 categoryId。
+     * <p>
+     * 每层一次 selectById，时间复杂度 O(树深度)。分类树的层级一般在 3~5 层，
+     * 不会超过 10 层，单次校验 ~5 次查询可接受。若树深度失控，可改为一次全表
+     * selectList + 内存构建父链 Map。
      */
     private boolean isAncestor(Long categoryId, Long targetId) {
         Set<Long> visited = new HashSet<>();

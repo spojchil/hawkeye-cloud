@@ -42,6 +42,13 @@ public class VulVO {
         private Integer version;
     }
 
+    /**
+     * 漏洞模板详情返回值（仅限详情接口使用）。
+     * <p>
+     * ★ 包含 httpRequests / matchers / extractors 三个 MEDIUMTEXT 字段，
+     *    数据量大（单条可达数百 KB），严禁在分页列表接口中复用此 VO。
+     *    分页列表请使用 {@link PageVulVO.Response}。
+     */
     @Data
     public static class Response {
         private Long id;
