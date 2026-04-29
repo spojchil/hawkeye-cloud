@@ -4,6 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.common.utils.annotation.LogExecutionTime;
+import com.common.utils.response.ApiException;
+import com.common.utils.response.CommonErrorCode;
 import com.hawkeye.asset.business.mapstruct.AssetCategoryMapstruct;
 import com.hawkeye.asset.business.mapper.AssetCategoryMapper;
 import com.hawkeye.asset.business.mapper.AssetCategoryMappingMapper;
@@ -43,6 +46,7 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
     private final AssetCategoryMapstruct categoryMapstruct;
     private final AssetCategoryMappingMapper mappingMapper;
 
+    @LogExecutionTime("查询分类列表")
     @Override
     public List<CategoryVO.Response> listCategories(Long parentId, String name) {
         /*
@@ -60,7 +64,9 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
                 .toList();
     }
 
+    @LogExecutionTime("创建分类")
     @Override
+    @Transactional
     public CategoryVO.Response create(CategoryVO.Request request) {
         AssetCategory category = categoryMapstruct.toEntity(request);
         baseMapper.insert(category);
@@ -73,8 +79,15 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
      * 不允许修改父分类（parentId），传入的 request.parentId 会被忽略。
      * 如果 categoryId 不存在则抛异常。
      */
+    @LogExecutionTime("更新分类")
     @Override
+    @Transactional
     public CategoryVO.Response update(Long categoryId, CategoryVO.Request request) {
+        // 校验：只有 name 和 description 可更新，至少需要提供一个
+        if (request.getName() == null && request.getDescription() == null) {
+            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(), "至少需要提供一个更新字段",
+                    HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
+        }
         LambdaUpdateWrapper<AssetCategory> wrapper = new LambdaUpdateWrapper<AssetCategory>()
                 .eq(AssetCategory::getCategoryId, categoryId)
                 .set(request.getName() != null, AssetCategory::getName, request.getName())
@@ -89,6 +102,7 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
         return categoryMapstruct.toResponseVO(updated);
     }
 
+    @LogExecutionTime("删除分类")
     @Override
     @Transactional
     public void delete(Long categoryId) {
@@ -129,6 +143,7 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
      * 但数据库层有唯一索引 uk_asset_category (asset_id, category_id) 兜底，
      * 并发冲突时 MySQL 抛 DuplicateKeyException 事务回滚，不会产生脏数据。
      */
+    @LogExecutionTime("分类添加资产")
     @Override
     @Transactional
     public int addAssets(Long categoryId, List<Long> assetIds) {
@@ -163,7 +178,9 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
         return count;
     }
 
+    @LogExecutionTime("分类移除资产")
     @Override
+    @Transactional
     public int removeAssets(Long categoryId, List<Long> assetIds) {
         return mappingMapper.delete(
                 new LambdaQueryWrapper<AssetCategoryMapping>()
