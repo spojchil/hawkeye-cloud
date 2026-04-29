@@ -23,6 +23,7 @@
         <module>auth-service</module>
         <module>asset-service</module>
         <module>vul-service</module>
+        <module>task-service</module>
     </modules>
 
     <properties>
