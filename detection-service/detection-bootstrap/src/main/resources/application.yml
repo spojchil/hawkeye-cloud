@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: detection-service
+
+  profiles:
+    active: dev
+
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+      - optional:nacos:common-${spring.profiles.active}.yaml
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        group: DEFAULT_GROUP
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:hawkeye}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # RocketMQ 消费者配置
+  rocketmq:
+    name-server: ${ROCKETMQ_HOST:localhost}:${ROCKETMQ_PORT:9876}
+    consumer:
+      group: task_item_consumer_group
+      topic: task_item_topic
+      pull-batch-size: 32
+      max-reconsume-times: 16
+
+server:
+  port: ${SERVER_PORT:8006}
+
+logging:
+  level:
+    com.hawkeye.detection.business.mapper: debug
+    com.hawkeye.detection.business.service: info
+    com.hawkeye.detection.business.consumer: debug
+
+# ★ MyBatis-Plus 配置要点：
+#   - 逻辑删除由 @TableLogic 注解 + 全局配置共同控制
+#   - 分页由 PaginationInnerInterceptor + Page<T> 对象实现
+#   - 多租户由 TenantLineInnerInterceptor + TenantLineHandler 自动注入
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.hawkeye.detection.common.pojo.entity
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
