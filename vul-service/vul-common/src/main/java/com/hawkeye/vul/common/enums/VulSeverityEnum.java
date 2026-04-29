@@ -1,30 +1,24 @@
 package com.hawkeye.vul.common.enums;
 
-import com.baomidou.mybatisplus.annotation.IEnum;
-
 /**
  * 漏洞严重程度枚举，映射 Nuclei 模板的 severity 字段。
- * 实现 IEnum 以配合 MybatisEnumTypeHandler 自动与 DB tinyint 互转。
+ * <p>
+ * 数据库存 VARCHAR，不需要 IEnum<Integer> 自动映射。
+ * {@link #fromNucleiSeverity(String)} 负责 YAML 字符串 → VulSeverityEnum。
+ * DB 中存枚举名小写（如 "low"、"high"），读写时通过 {@code name().toLowerCase()} 互转。
  */
-public enum VulSeverityEnum implements IEnum<Integer> {
-    INFO(0, "信息"),
-    LOW(1, "低危"),
-    MEDIUM(2, "中危"),
-    HIGH(3, "高危"),
-    CRITICAL(4, "严重"),
-    UNKNOWN(5, "未知");
+public enum VulSeverityEnum {
+    INFO("信息"),
+    LOW("低危"),
+    MEDIUM("中危"),
+    HIGH("高危"),
+    CRITICAL("严重"),
+    UNKNOWN("未知");
 
-    private final int code;
     private final String desc;
 
-    VulSeverityEnum(int code, String desc) {
-        this.code = code;
+    VulSeverityEnum(String desc) {
         this.desc = desc;
-    }
-
-    @Override
-    public Integer getValue() {
-        return this.code;
     }
 
     public String getDesc() {
@@ -44,4 +38,19 @@ public enum VulSeverityEnum implements IEnum<Integer> {
             default -> UNKNOWN;
         };
     }
+
+    /**
+     * 从 DB 存的小写字符串反序列化。
+     */
+    public static VulSeverityEnum fromDbValue(String value) {
+        if (value == null) {
+            return UNKNOWN;
+        }
+        try {
+            return valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return UNKNOWN;
+        }
+    }
 }
+

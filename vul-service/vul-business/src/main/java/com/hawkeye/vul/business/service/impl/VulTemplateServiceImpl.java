@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
@@ -26,6 +27,22 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * 漏洞模板服务实现。
+ * <p>
+ * 负责漏洞检测模板的 CRUD 及分页查询。
+ * 模板数据来源于 Nuclei YAML（~10,688 个），仅保留 http 协议模板。
+ * {@code templateId} 是 YAML 的业务唯一标识，{@code id} 是数据库自增主键。
+ * <p>
+ * <b>关键业务规则：</b>
+ * <ul>
+ *   <li><b>分页查询：</b> 支持按名称、严重程度、标签、启用状态、分类筛选</li>
+ *   <li><b>删除保护：</b> 已关联分类的模板不允许删除，需先移除所有关联</li>
+ *   <li><b>检测接口：</b> getForDetection 仅返回检测引擎需要的字段</li>
+ * </ul>
+ *
+ * @see VulTemplateService
+ */
 @Service
 @RequiredArgsConstructor
 public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTemplate>
@@ -34,9 +51,10 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     private static final int PAGE_SIZE_MAX = 100;
 
     private final VulMapstruct vulMapstruct;
-    private final VulCategoryMappingMapper vulCategoryMappingMapper;
+    private final VulCategoryMappingMapper mappingMapper;
 
     @Override
+    @LogExecutionTime
     public ListResult<PageVulVO.Response> pageQuery(PageVulVO.Request request) {
         int pageSize = Math.min(request.getPageSize() != null ? request.getPageSize() : 10, PAGE_SIZE_MAX);
         int pageNum = request.getPage() != null ? request.getPage() : 1;
@@ -56,7 +74,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         }
 
         if (request.getCategoryId() != null) {
-            List<Long> templateIds = vulCategoryMappingMapper.selectList(
+            List<Long> templateIds = mappingMapper.selectList(
                     new LambdaQueryWrapper<VulCategoryMapping>()
                             .eq(VulCategoryMapping::getCategoryId, request.getCategoryId())
                             .select(VulCategoryMapping::getTemplateId)
@@ -80,6 +98,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     }
 
     @Override
+    @LogExecutionTime
     public VulVO.Response getById(Long id) {
         VulTemplate template = baseMapper.selectById(id);
         if (template == null) {
@@ -90,6 +109,8 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     }
 
     @Override
+    @LogExecutionTime
+    @Transactional
     public VulVO.Response create(VulVO.Request request) {
         VulTemplate template = vulMapstruct.toEntity(request);
         if (template.getEnabled() == null) {
@@ -103,7 +124,14 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     }
 
     @Override
+    @LogExecutionTime
+    @Transactional
     public VulVO.Response update(Long id, VulVO.Request request) {
+        if (allFieldsNull(request)) {
+            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
+                    "至少需要提供一个更新字段", HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
+        }
+
         LambdaUpdateWrapper<VulTemplate> wrapper = new LambdaUpdateWrapper<VulTemplate>()
                 .eq(VulTemplate::getId, id)
                 .set(request.getName() != null, VulTemplate::getName, request.getName())
@@ -112,11 +140,13 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                 .set(request.getSeverity() != null, VulTemplate::getSeverity, request.getSeverity())
                 .set(request.getTags() != null, VulTemplate::getTags, request.getTags())
                 .set(request.getReference() != null, VulTemplate::getReference, request.getReference())
-                .set(request.getClassification() != null, VulTemplate::getClassification, request.getClassification())
+                .set(request.getClassification() != null, VulTemplate::getClassification,
+                        request.getClassification())
                 .set(request.getMetadata() != null, VulTemplate::getMetadata, request.getMetadata())
                 .set(request.getFlow() != null, VulTemplate::getFlow, request.getFlow())
                 .set(request.getVariables() != null, VulTemplate::getVariables, request.getVariables())
-                .set(request.getHttpRequests() != null, VulTemplate::getHttpRequests, request.getHttpRequests())
+                .set(request.getHttpRequests() != null, VulTemplate::getHttpRequests,
+                        request.getHttpRequests())
                 .set(request.getMatchers() != null, VulTemplate::getMatchers, request.getMatchers())
                 .set(request.getExtractors() != null, VulTemplate::getExtractors, request.getExtractors())
                 .set(request.getEnabled() != null, VulTemplate::getEnabled, request.getEnabled())
@@ -132,6 +162,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     }
 
     @Override
+    @LogExecutionTime
     @Transactional
     public void delete(Long id) {
         VulTemplate template = baseMapper.selectById(id);
@@ -140,19 +171,20 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                     "漏洞模板不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
-        long mappingCount = vulCategoryMappingMapper.selectCount(
+        long mappingCount = mappingMapper.selectCount(
                 new LambdaQueryWrapper<VulCategoryMapping>()
                         .eq(VulCategoryMapping::getTemplateId, id));
         if (mappingCount > 0) {
-            vulCategoryMappingMapper.delete(
-                    new LambdaQueryWrapper<VulCategoryMapping>()
-                            .eq(VulCategoryMapping::getTemplateId, id));
+            throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
+                    "该模板存在分类关联，请先移除所有关联再删除",
+                    HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
         baseMapper.deleteById(id);
     }
 
     @Override
+    @LogExecutionTime
     public VulTemplateDetectDTO getForDetection(Long id) {
         VulTemplate template = baseMapper.selectById(id);
         if (template == null) {
@@ -174,5 +206,27 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return baseMapper.selectOne(
                 new LambdaQueryWrapper<VulTemplate>()
                         .eq(VulTemplate::getTemplateId, templateId));
+    }
+
+    /**
+     * 判断 request 中所有字段是否全为 null。
+     * 全 null 时禁止更新，避免生成无意义的 SQL。
+     */
+    private boolean allFieldsNull(VulVO.Request request) {
+        return request.getName() == null
+                && request.getDescription() == null
+                && request.getAuthor() == null
+                && request.getSeverity() == null
+                && request.getTags() == null
+                && request.getReference() == null
+                && request.getClassification() == null
+                && request.getMetadata() == null
+                && request.getFlow() == null
+                && request.getVariables() == null
+                && request.getHttpRequests() == null
+                && request.getMatchers() == null
+                && request.getExtractors() == null
+                && request.getEnabled() == null
+                && request.getVersion() == null;
     }
 }

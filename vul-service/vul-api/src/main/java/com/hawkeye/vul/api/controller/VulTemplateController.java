@@ -49,7 +49,7 @@ public class VulTemplateController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         vulTemplateService.delete(id);
-        return ApiResponse.success(null);
+        return ApiResponse.success();
     }
 
     @Operation(summary = "给检测引擎查询模板（Feign 内部接口）")

@@ -32,8 +32,7 @@ CREATE TABLE IF NOT EXISTS `vul_template`
     UNIQUE KEY `uk_template_id` (`template_id`),
     KEY              `idx_severity` (`severity`),
     KEY              `idx_name` (`name`),
-    KEY              `idx_enabled` (`enabled`),
-    FULLTEXT KEY `ft_tags` (`tags`)
+    KEY              `idx_enabled` (`enabled`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci COMMENT ='漏洞检测模板表';

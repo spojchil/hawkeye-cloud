@@ -2,7 +2,9 @@ package com.hawkeye.vul.business.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.hawkeye.vul.business.mapstruct.VulMapstruct;
@@ -22,15 +24,31 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 漏洞分类服务实现。
+ * <p>
+ * 分类采用树形结构（通过 {@code parentId} 指向父分类），参考 {@code AssetCategory}。
+ * 支持分类的 CRUD、防环校验、父子约束，以及分类与模板的批量关联/移除操作。
+ * <p>
+ * <b>关键业务规则：</b>
+ * <ul>
+ *   <li><b>变更父分类防环：</b> 目标父节点不能是当前节点的子孙</li>
+ *   <li><b>删除保护：</b> 有子分类或关联模板时拒绝删除</li>
+ *   <li><b>批量关联去重：</b> 已存在的关联关系跳过，不重复插入</li>
+ * </ul>
+ *
+ * @see VulCategoryService
+ */
 @Service
 @RequiredArgsConstructor
 public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCategory>
         implements VulCategoryService {
 
     private final VulMapstruct vulMapstruct;
-    private final VulCategoryMappingMapper vulCategoryMappingMapper;
+    private final VulCategoryMappingMapper mappingMapper;
 
     @Override
+    @LogExecutionTime
     public List<VulCategoryVO.Response> listCategories(Long parentId, String name) {
         LambdaQueryWrapper<VulCategory> wrapper = new LambdaQueryWrapper<VulCategory>()
                 .eq(parentId != null, VulCategory::getParentId, parentId)
@@ -43,6 +61,8 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
     }
 
     @Override
+    @LogExecutionTime
+    @Transactional
     public VulCategoryVO.Response create(VulCategoryVO.Request request) {
         VulCategory category = vulMapstruct.toCategoryEntity(request);
         baseMapper.insert(category);
@@ -50,6 +70,8 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
     }
 
     @Override
+    @LogExecutionTime
+    @Transactional
     public VulCategoryVO.Response update(Long categoryId, VulCategoryVO.Request request) {
         VulCategory category = baseMapper.selectById(categoryId);
         if (category == null) {
@@ -57,33 +79,32 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
                     "分类不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
-        if (request.getParentId() != null && request.getParentId().equals(categoryId)) {
-            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
-                    "父分类不能是自己", HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
-        }
-
-        if (request.getParentId() != null && isAncestor(categoryId, request.getParentId())) {
-            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
-                    "不能将分类挂到自己的子分类下，会形成循环",
-                    HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
-        }
-
-        if (request.getName() != null) {
-            category.setName(request.getName());
-        }
         if (request.getParentId() != null) {
-            category.setParentId(request.getParentId());
+            if (request.getParentId().equals(categoryId)) {
+                throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
+                        "父分类不能是自己", HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
+            }
+            if (isAncestor(categoryId, request.getParentId())) {
+                throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
+                        "不能将分类挂到自己的子分类下，会形成循环",
+                        HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
+            }
         }
-        if (request.getDescription() != null) {
-            category.setDescription(request.getDescription());
-        }
-        baseMapper.updateById(category);
+
+        LambdaUpdateWrapper<VulCategory> wrapper = new LambdaUpdateWrapper<VulCategory>()
+                .eq(VulCategory::getCategoryId, categoryId)
+                .set(request.getName() != null, VulCategory::getName, request.getName())
+                .set(request.getParentId() != null, VulCategory::getParentId, request.getParentId())
+                .set(request.getDescription() != null, VulCategory::getDescription, request.getDescription());
+
+        baseMapper.update(null, wrapper);
 
         VulCategory updated = baseMapper.selectById(categoryId);
         return vulMapstruct.toCategoryVO(updated);
     }
 
     @Override
+    @LogExecutionTime
     @Transactional
     public void delete(Long categoryId) {
         VulCategory category = baseMapper.selectById(categoryId);
@@ -101,7 +122,7 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
                     HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
-        long mappingCount = vulCategoryMappingMapper.selectCount(
+        long mappingCount = mappingMapper.selectCount(
                 new LambdaQueryWrapper<VulCategoryMapping>()
                         .eq(VulCategoryMapping::getCategoryId, categoryId));
         if (mappingCount > 0) {
@@ -114,6 +135,7 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
     }
 
     @Override
+    @LogExecutionTime
     @Transactional
     public int addTemplates(Long categoryId, List<Long> templateIds) {
         if (baseMapper.selectById(categoryId) == null) {
@@ -121,7 +143,7 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
                     "分类不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
-        Set<Long> existing = new HashSet<>(vulCategoryMappingMapper.selectList(
+        Set<Long> existing = new HashSet<>(mappingMapper.selectList(
                 new LambdaQueryWrapper<VulCategoryMapping>()
                         .eq(VulCategoryMapping::getCategoryId, categoryId)
                         .in(VulCategoryMapping::getTemplateId, templateIds)
@@ -139,24 +161,29 @@ public class VulCategoryServiceImpl extends ServiceImpl<VulCategoryMapper, VulCa
 
         if (!newMappings.isEmpty()) {
             for (VulCategoryMapping mapping : newMappings) {
-                vulCategoryMappingMapper.insert(mapping);
+                mappingMapper.insert(mapping);
             }
         }
         return newMappings.size();
     }
 
     @Override
+    @LogExecutionTime
     @Transactional
     public int removeTemplates(Long categoryId, List<Long> templateIds) {
         if (templateIds == null || templateIds.isEmpty()) {
             return 0;
         }
-        return vulCategoryMappingMapper.delete(
+        return mappingMapper.delete(
                 new LambdaQueryWrapper<VulCategoryMapping>()
                         .eq(VulCategoryMapping::getCategoryId, categoryId)
                         .in(VulCategoryMapping::getTemplateId, templateIds));
     }
 
+    /**
+     * 判断 targetId 是否是 categoryId 的祖先节点。
+     * 从 targetId 出发沿 parentId 链向上追溯，检查是否经过 categoryId。
+     */
     private boolean isAncestor(Long categoryId, Long targetId) {
         Set<Long> visited = new HashSet<>();
         Long current = targetId;

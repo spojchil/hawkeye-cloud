@@ -44,7 +44,7 @@ public class VulCategoryController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         vulCategoryService.delete(id);
-        return ApiResponse.success(null);
+        return ApiResponse.success();
     }
 
     @Operation(summary = "给分类批量添加模板")

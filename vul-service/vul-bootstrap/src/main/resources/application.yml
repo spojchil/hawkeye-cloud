@@ -20,6 +20,7 @@ spring:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:hawkeye}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       connection-timeout: 30000
       maximum-pool-size: 20
@@ -33,6 +34,11 @@ logging:
     com.hawkeye.vul.business.service: info
     com.hawkeye.vul.api.controller: debug
 
+# ★ MyBatis-Plus 配置要点：
+#   - 枚举处理器 MybatisEnumTypeHandler 自动处理 IEnum 实现类
+#   - 逻辑删除由 @TableLogic 注解 + 全局配置共同控制
+#   - 分页由 PaginationInnerInterceptor + Page<T> 对象实现
+#   - 多租户由 TenantLineInnerInterceptor + TenantLineHandler 自动注入
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
