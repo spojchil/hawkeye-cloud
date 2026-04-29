@@ -30,7 +30,7 @@ public class TaskProgressScheduler {
 
     private final TaskService taskService;
     private final TaskMapper taskMapper;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
 
     private static final String COMPLETED_KEY_PREFIX = "task:";
     private static final String COMPLETED_KEY_SUFFIX = ":completed";
@@ -48,11 +48,11 @@ public class TaskProgressScheduler {
         for (Long taskId : runningIds) {
             try {
                 String key = COMPLETED_KEY_PREFIX + taskId + COMPLETED_KEY_SUFFIX;
-                Object value = redisTemplate.opsForValue().get(key);
+                String value = redisTemplate.opsForValue().get(key);
                 if (value == null) {
                     continue;
                 }
-                int completed = Integer.parseInt(value.toString());
+                int completed = Integer.parseInt(value);
 
                 Integer last = lastCompletedMap.put(taskId, completed);
                 if (last != null && last == completed) {
