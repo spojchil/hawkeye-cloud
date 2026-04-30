@@ -3,6 +3,7 @@ package com.hawkeye.vul.api.controller;
 import com.common.utils.response.ApiResponse;
 import com.hawkeye.vul.business.service.VulCategoryService;
 import com.hawkeye.vul.common.pojo.vo.category.VulCategoryVO;
+import com.hawkeye.vul.common.pojo.vo.category.VulCategoryRequestVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -11,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "漏洞分类管理", description = "漏洞模板分类树管理")
+@Tag(name = "漏洞分类管理")
 @RestController
 @RequestMapping("/vul-category")
 @RequiredArgsConstructor
@@ -19,25 +20,23 @@ public class VulCategoryController {
 
     private final VulCategoryService vulCategoryService;
 
-    @Operation(summary = "查询分类列表")
+    @Operation(summary = "查询分类树")
     @GetMapping
-    public ApiResponse<List<VulCategoryVO.Response>> listCategories(
-            @RequestParam(required = false) Long parentId,
-            @RequestParam(required = false) String name) {
-        return ApiResponse.success(vulCategoryService.listCategories(parentId, name));
+    public ApiResponse<List<VulCategoryVO>> tree(@RequestParam(required = false) Long parentId) {
+        return ApiResponse.success(vulCategoryService.tree(parentId));
     }
 
     @Operation(summary = "创建分类")
     @PostMapping
-    public ApiResponse<VulCategoryVO.Response> create(@Valid @RequestBody VulCategoryVO.Request request) {
+    public ApiResponse<Long> create(@Valid @RequestBody VulCategoryRequestVO request) {
         return ApiResponse.success(vulCategoryService.create(request));
     }
 
     @Operation(summary = "更新分类")
     @PutMapping("/{id}")
-    public ApiResponse<VulCategoryVO.Response> update(@PathVariable Long id,
-                                                       @Valid @RequestBody VulCategoryVO.Request request) {
-        return ApiResponse.success(vulCategoryService.update(id, request));
+    public ApiResponse<Void> update(@PathVariable Long id, @Valid @RequestBody VulCategoryRequestVO request) {
+        vulCategoryService.update(id, request);
+        return ApiResponse.success();
     }
 
     @Operation(summary = "删除分类")

@@ -7,13 +7,11 @@ import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.math.BigDecimal;
+
 /**
- * 漏洞检测模板主表。
- * <p>
- * 模板数据来源于 Nuclei YAML（~10,688 个），仅保留 http 协议模板。
- * templateId 是 YAML 的 id 字段（如 "CVE-2024-0012"），作为业务唯一键。
- * httpRequests / matchers / extractors 三个大 JSON 字段默认不参与 SELECT，
- * 列表查询时不会加载，仅在详情接口中单独取出。
+ * 漏洞模板主表（v2）。
+ * 只存元数据和 1:1 分类信息，检测逻辑拆到了 vul_http_step / vul_matcher / vul_extractor。
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -23,6 +21,7 @@ public class VulTemplate extends BaseEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** YAML id 小写，业务唯一键 */
     private String templateId;
 
     private String name;
@@ -31,25 +30,23 @@ public class VulTemplate extends BaseEntity {
 
     private String author;
 
+    /** critical / high / medium / low / info / unknown */
     private String severity;
 
-    private String tags;
+    private String cveId;
 
-    private String reference;
+    /** 可复合，如 "CWE-20,CWE-77" */
+    private String cweId;
 
-    private String classification;
+    private BigDecimal cvssScore;
 
-    private String metadata;
+    private BigDecimal epssScore;
 
+    /** 多步骤执行流，如 http(1) && http(2) */
     private String flow;
 
+    /** 模板级变量，MySQL JSON → String */
     private String variables;
-
-    private String httpRequests;
-
-    private String matchers;
-
-    private String extractors;
 
     private Boolean enabled;
 

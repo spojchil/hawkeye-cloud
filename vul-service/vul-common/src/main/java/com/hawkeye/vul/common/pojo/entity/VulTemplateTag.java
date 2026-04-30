@@ -7,15 +7,19 @@ import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+/**
+ * 模板-标签关联（M2M）。
+ * 唯一约束在 (template_id, tag_id)，代理 id 为 MyBatis-Plus 兼容。
+ */
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("vul_category_mapping")
-public class VulCategoryMapping extends BaseEntity {
+@TableName("vul_template_tag")
+public class VulTemplateTag extends BaseEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
     private Long templateId;
 
-    private Long categoryId;
+    private Long tagId;
 }

@@ -7,23 +7,17 @@ import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/**
- * 漏洞分类（树形结构）。
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("vul_category")
-public class VulCategory extends BaseEntity {
+@TableName("vul_reference")
+public class VulReference extends BaseEntity {
 
     @TableId(type = IdType.AUTO)
-    private Long categoryId;
+    private Long id;
 
-    private String name;
+    private Long templateId;
 
-    /** NULL = 根节点 */
-    private Long parentId;
+    private String url;
 
-    private Integer sortOrder;
-
-    private String description;
+    private String title;
 }
