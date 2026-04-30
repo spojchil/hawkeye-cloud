@@ -72,6 +72,11 @@ class TaskServiceImplTest {
                 templateCache, assetServiceFeign, taskProducerService));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
+        // stub 异步拆分，单元测试聚焦 create/getById/pageQuery/cancel 逻辑
+        try {
+            doNothing().when(taskService).splitAndDispatch(any(Task.class), anyList(), anyList());
+        } catch (Exception ignored) { }
+
         doReturn(lambdaChain).when(taskService).lambdaQuery();
         when(lambdaChain.eq(any(), any())).thenReturn(lambdaChain);
         when(lambdaChain.select((com.baomidou.mybatisplus.core.toolkit.support.SFunction<Task, ?>) any()))
