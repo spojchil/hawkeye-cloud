@@ -7,6 +7,9 @@ import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+/**
+ * 漏洞分类（树形结构）。
+ */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("vul_category")
@@ -17,7 +20,10 @@ public class VulCategory extends BaseEntity {
 
     private String name;
 
+    /** NULL = 根节点 */
     private Long parentId;
+
+    private Integer sortOrder;
 
     private String description;
 }

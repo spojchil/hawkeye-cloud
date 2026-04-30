@@ -24,6 +24,7 @@
         <module>asset-service</module>
         <module>vul-service</module>
         <module>task-service</module>
+        <module>detection-service</module>
     </modules>
 
     <properties>
@@ -56,7 +57,7 @@
         <redisson.version>3.32.0</redisson.version>
 
         <!-- 消息队列 -->
-        <rocketmq.version>5.3.3</rocketmq.version>
+        <rocketmq.version>2.3.2</rocketmq.version>
 
         <!-- 分布式相关 -->
         <seata.version>2.1.0</seata.version>
