@@ -41,6 +41,13 @@ spring:
               filters:
                 - StripPrefix=1
 
+            - id: vul-service
+              uri: lb://vul-service
+              predicates:
+                - Path=/api/vul/**
+              filters:
+                - StripPrefix=1
+
           # CORS 统一在这里配置
           globalcors:
             cors-configurations:
