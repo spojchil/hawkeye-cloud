@@ -16,6 +16,7 @@ public enum TaskItemStatusEnum implements IEnum<Integer> {
     @EnumValue
     private final Integer value;
 
+    // 自定义序列化方法
     @JsonValue
     private final String description;
 

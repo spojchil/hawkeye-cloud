@@ -40,9 +40,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements TaskService {
 
+    // 为什么不在VO检验？
     private static final int PAGE_SIZE_MAX = 100;
 
     private final TaskMapstruct taskMapstruct;
+    // 未用到的字段
     private final TaskItemService taskItemService;
     private final TaskItemMapper taskItemMapper;
     private final TemplateCache templateCache;
@@ -67,6 +69,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Async
     @Transactional
     public void splitAndDispatch(Task task, List<Long> assetIds, List<Long> templateIds) {
+        // TODO 明明有全局异常处理器，你可以看看通用服务，和资产服务，为什么你还要手动处理？
         try {
             task.setStatus(TaskStatusEnum.RUNNING);
             updateById(task);
@@ -106,6 +109,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             List<TaskItemMessage> messages = new ArrayList<>();
             List<Long> failedItemIds = new ArrayList<>();
 
+            // TODO 这一大坨是什么东西，难道不能抽取为几个方法吗
             for (Long assetId : assetIds) {
                 Map<String, Object> asset = assets.get(assetId);
                 if (asset == null) continue;

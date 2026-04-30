@@ -27,16 +27,27 @@ public class TaskVO {
     @Data
     public static class Response {
         private Long taskId;
+
         private String taskName;
+
         private String targetIds;
+
         private String vulIds;
+
         private TaskStatusEnum status;
+
         private Integer totalItems;
+
         private Integer completedItems;
+
         private Integer failedItems;
+
         private Integer priority;
+
         private LocalDateTime startTime;
+
         private LocalDateTime endTime;
+
         private String resultSummary;
     }
 }
