@@ -8,7 +8,6 @@ import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
 import com.hawkeye.task.business.mapstruct.TaskMapstruct;
 import com.hawkeye.task.business.mapper.TaskMapper;
-import com.hawkeye.task.business.service.TaskItemService;
 import com.hawkeye.task.common.enums.TaskStatusEnum;
 import com.hawkeye.task.common.pojo.entity.Task;
 import com.hawkeye.task.common.pojo.vo.task.PageTaskVO;
@@ -43,8 +42,6 @@ class TaskServiceImplTest {
     @Mock
     private TaskMapstruct taskMapstruct;
     @Mock
-    private TaskItemService taskItemService;
-    @Mock
     private com.hawkeye.task.business.mapper.TaskItemMapper taskItemMapper;
     @Mock
     private com.hawkeye.task.business.cache.TemplateCache templateCache;
@@ -68,7 +65,7 @@ class TaskServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemService, taskItemMapper,
+        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper,
                 templateCache, assetServiceFeign, taskProducerService));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 

@@ -8,38 +8,32 @@ import com.hawkeye.task.common.enums.TaskItemStatusEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-// TODO 这个如果检测服务也有的话，可以提前到公共服务中
+/**
+ * 检测项——一次任务拆分的最小执行单元（一个资产 + 一个模板）。
+ * <p>
+ * 数据量大时（M×N 可达数万），需要考虑分库分表（按 task_id 分片）。
+ * 检测服务也操作此表，可考虑提取到 common-service。
+ */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("task_item")
 public class TaskItem extends BaseEntity {
 
-    // TODO 这个进一步的方向是分库分表，一般来说检测项很多
     @TableId(type = IdType.AUTO)
     private Long itemId;
 
-    /**
-     * 任务id
-     */
+    /** 所属任务 ID */
     private Long taskId;
 
-    /**
-     * 资产id
-     */
+    /** 资产 ID */
     private Long assetId;
 
-    /**
-     * 漏洞模板id
-     */
+    /** 漏洞模板 ID（关联 vul_template.id） */
     private Long vulId;
 
-    /**
-     * 待执行，成功，未匹配，失败
-     */
+    /** PENDING → SUCCESS / NO_MATCH / FAILED */
     private TaskItemStatusEnum status;
 
-    /**
-     * 检测结果JSON，
-     */
+    /** 检测结果 JSON，回写 detection-service 执行结果 */
     private String result;
 }

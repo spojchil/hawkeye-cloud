@@ -10,6 +10,14 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
+/**
+ * 检测任务。
+ * <p>
+ * 状态流转: PENDING → RUNNING(拆分开始) → DONE/ERROR/CANCELLED。
+ * completedItems 由 TaskProgressScheduler 每 2s 轮询 Redis 回填。
+ *
+ * <p>TODO: 补充 userId 字段关联创建者账号。
+ */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("task")
@@ -18,63 +26,39 @@ public class Task extends BaseEntity {
     @TableId(type = IdType.AUTO)
     private Long taskId;
 
-    /**
-     * 任务名称
-     */
+    /** 任务名称 */
     private String taskName;
 
-    /**
-     * 目标资产id列表，逗号分割，前端传入
-     */
+    /** 资产ID列表（逗号分隔），前端传入 */
     private String targetIds;
 
-    /**
-     * 漏洞模板id列表，逗号分割，前端传入
-     */
+    /** 漏洞模板ID列表（逗号分隔），前端传入 */
     private String vulIds;
 
-    /**
-     * 任务状态
-     */
+    /** PENDING → RUNNING → DONE / ERROR / CANCELLED */
     private TaskStatusEnum status;
 
-    /**
-     * 检测项数
-     */
+    /** 检测项总数 = 资产数 × 模板数，拆分完成后回填 */
     private Integer totalItems;
 
-    // TODO 这个似乎是要更新？
-    /**
-     * 已完成数
-     */
+    /** 已完成数，TaskProgressScheduler 从 Redis 轮询后回填 */
     private Integer completedItems;
 
-    /**
-     * 失败数
-     */
+    /** 失败数，同 completedItems 来源 */
     private Integer failedItems;
 
-    /**
-     * 优先级，越小越高，默认1
-     */
+    /** 优先级，值越小越高，默认 1 */
     private Integer priority;
 
-    // TODO 这个开始时间是，前端的任务创建时间吗（立刻返回的）还是说是处理的开始时间
-    /**
-     * 拆分开始时间
-     */
+    /** 异步拆分开始时间（非任务创建时间——任务创建时立刻返回） */
     private LocalDateTime startTime;
 
-    /**
-     * 拆分完成时间
-     */
+    /** 最后一个检测项完成的时间（由 TaskProgressScheduler 标记 DONE 时写入） */
     private LocalDateTime endTime;
 
-    // TODO 之后补充结果摘要是什么
     /**
-     * 结果摘要
+     * 结果摘要 JSON，格式: {@code {"matched":3, "notMatched":46, "error":1}}。
+     * TaskProgressScheduler 标记 DONE 时聚合写入。
      */
     private String resultSummary;
-
-    // TODO 没有账号id
 }

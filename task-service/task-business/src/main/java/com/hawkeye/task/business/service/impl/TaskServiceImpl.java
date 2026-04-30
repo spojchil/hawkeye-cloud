@@ -2,6 +2,7 @@ package com.hawkeye.task.business.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -15,15 +16,15 @@ import com.hawkeye.task.business.feign.AssetServiceFeign;
 import com.hawkeye.task.business.mapper.TaskItemMapper;
 import com.hawkeye.task.business.mapper.TaskMapper;
 import com.hawkeye.task.business.mapstruct.TaskMapstruct;
-import com.hawkeye.task.business.service.TaskItemService;
-import com.hawkeye.task.business.service.TaskService;
+import com.hawkeye.task.business.mq.TaskProducerService;
 import com.hawkeye.task.common.enums.TaskItemStatusEnum;
 import com.hawkeye.task.common.enums.TaskStatusEnum;
 import com.hawkeye.task.common.pojo.entity.Task;
 import com.hawkeye.task.common.pojo.entity.TaskItem;
+import com.hawkeye.task.business.service.TaskService;
 import com.hawkeye.task.common.pojo.vo.task.PageTaskVO;
 import com.hawkeye.task.common.pojo.vo.task.TaskVO;
-import com.hawkeye.task.business.mq.TaskProducerService;
+import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
 import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,20 +33,22 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 任务服务实现。
+ * <p>
+ * 核心流程：创建任务 → 异步拉取模板/资产 → M×N 拆分 → 构建检测项消息 → RocketMQ 投递。
+ * 全局异常处理器（GlobalExceptionHandler）兜底未捕获异常，此处不重复 try-catch。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements TaskService {
 
-    // 为什么不在VO检验？
-    private static final int PAGE_SIZE_MAX = 100;
-
     private final TaskMapstruct taskMapstruct;
-    // 未用到的字段
-    private final TaskItemService taskItemService;
     private final TaskItemMapper taskItemMapper;
     private final TemplateCache templateCache;
     private final AssetServiceFeign assetServiceFeign;
@@ -66,138 +69,142 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return taskMapstruct.toResponseVO(task);
     }
 
+    /**
+     * 异步拆分：拉取模板配置 + 资产信息 → 构建 M×N 条检测项消息 → 持久化 task_item → 投递 RocketMQ。
+     * 任何环节失败都会标记任务为 ERROR，由全局异常处理器兜底未预期的运行时异常。
+     */
     @Async
     @Transactional
     public void splitAndDispatch(Task task, List<Long> assetIds, List<Long> templateIds) {
-        // TODO 明明有全局异常处理器，你可以看看通用服务，和资产服务，为什么你还要手动处理？
-        try {
-            task.setStatus(TaskStatusEnum.RUNNING);
-            updateById(task);
+        task.setStatus(TaskStatusEnum.RUNNING);
+        task.setStartTime(LocalDateTime.now());
+        updateById(task);
 
-            // 批量拉取模板
-            Map<Long, VulTemplateDetectDTO> templates = templateCache.batchGet(templateIds);
-            if (templates.isEmpty()) {
-                task.setStatus(TaskStatusEnum.ERROR);
-                updateById(task);
-                return;
-            }
-
-            // 批量拉取资产
-            Map<Long, Map<String, Object>> assets = new LinkedHashMap<>();
-            for (Long assetId : assetIds) {
-                try {
-                    var resp = assetServiceFeign.getAsset(assetId);
-                    if (resp != null && resp.getData() != null) {
-                        assets.put(assetId, resp.getData());
-                    }
-                } catch (Exception e) {
-                    log.warn("拉取资产失败 assetId={}: {}", assetId, e.getMessage());
-                }
-            }
-            if (assets.isEmpty()) {
-                task.setStatus(TaskStatusEnum.ERROR);
-                updateById(task);
-                return;
-            }
-
-            // 拆分 M×N
-            int total = assetIds.size() * templates.size();
-            task.setTotalItems(total);
-            updateById(task);
-
-            long now = System.currentTimeMillis();
-            List<TaskItemMessage> messages = new ArrayList<>();
-            List<Long> failedItemIds = new ArrayList<>();
-
-            // TODO 这一大坨是什么东西，难道不能抽取为几个方法吗
-            for (Long assetId : assetIds) {
-                Map<String, Object> asset = assets.get(assetId);
-                if (asset == null) continue;
-
-                String protocol = (String) asset.getOrDefault("requestProtocol", "https");
-                String host = (String) asset.getOrDefault("requestHost", "");
-                Integer port = asset.get("requestPort") instanceof Number n
-                        ? n.intValue() : 443;
-                String path = (String) asset.getOrDefault("requestPath", "/");
-
-                for (Long templateId : templateIds) {
-                    VulTemplateDetectDTO tpl = templates.get(templateId);
-                    if (tpl == null) continue;
-
-                    // 持久化 task_item
-                    TaskItem item = new TaskItem();
-                    item.setTaskId(task.getTaskId());
-                    item.setAssetId(assetId);
-                    item.setVulId(templateId);
-                    item.setStatus(TaskItemStatusEnum.PENDING);
-                    taskItemMapper.insert(item);
-
-                    // 构建消息
-                    TaskItemMessage msg = new TaskItemMessage();
-                    msg.setTaskId(task.getTaskId());
-                    msg.setItemId(item.getItemId());
-                    msg.setTenantId(1L);
-                    msg.setCreatedAt(now);
-                    msg.setAssetProtocol(protocol);
-                    msg.setAssetHost(host);
-                    msg.setAssetPort(port);
-                    msg.setAssetPath(path);
-                    msg.setTemplateId(tpl.getTemplateId());
-                    msg.setFlow(tpl.getFlow());
-                    msg.setVariables(tpl.getVariables());
-                    msg.setHttpSteps(tpl.getHttpSteps() != null
-                            ? tpl.getHttpSteps().stream().map(s -> {
-                                TaskItemMessage.HttpStep hs = new TaskItemMessage.HttpStep();
-                                hs.setStepOrder(s.getStepOrder());
-                                hs.setMethod(s.getMethod());
-                                hs.setPath(s.getPath());
-                                hs.setHeaders(s.getHeaders());
-                                hs.setBody(s.getBody());
-                                hs.setRaw(s.getRaw());
-                                hs.setAttack(s.getAttack());
-                                hs.setMatchersCondition(s.getMatchersCondition());
-                                if (s.getMatchers() != null) {
-                                    hs.setMatchers(s.getMatchers().stream().map(m -> {
-                                        TaskItemMessage.Matcher hm = new TaskItemMessage.Matcher();
-                                        hm.setType(m.getType()); hm.setPart(m.getPart());
-                                        hm.setCondition(m.getCondition());
-                                        hm.setNegative(m.getNegative());
-                                        hm.setCaseInsensitive(m.getCaseInsensitive());
-                                        hm.setConfig(m.getConfig());
-                                        return hm;
-                                    }).toList());
-                                }
-                                if (s.getExtractors() != null) {
-                                    hs.setExtractors(s.getExtractors().stream().map(e -> {
-                                        TaskItemMessage.Extractor he = new TaskItemMessage.Extractor();
-                                        he.setType(e.getType()); he.setPart(e.getPart());
-                                        he.setName(e.getName()); he.setConfig(e.getConfig());
-                                        he.setInternal(e.getInternal());
-                                        he.setGroupNum(e.getGroupNum());
-                                        return he;
-                                    }).toList());
-                                }
-                                return hs;
-                            }).toList() : null);
-
-                    messages.add(msg);
-                }
-            }
-
-            // 投递消息队列
-            if (!messages.isEmpty()) {
-                taskProducerService.sendAsync(messages, failedMsg -> {
-                    taskItemMapper.update(null,
-                            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<TaskItem>()
-                                    .eq(TaskItem::getItemId, failedMsg.getItemId())
-                                    .set(TaskItem::getStatus, TaskItemStatusEnum.FAILED));
-                });
-            }
-        } catch (Exception e) {
-            log.error("任务拆分异常 taskId={}: {}", task.getTaskId(), e.getMessage(), e);
+        // 批量拉取模板
+        Map<Long, VulTemplateDetectDTO> templates = templateCache.batchGet(templateIds);
+        if (templates.isEmpty()) {
             task.setStatus(TaskStatusEnum.ERROR);
             updateById(task);
+            return;
         }
+
+        // 批量拉取资产
+        Map<Long, Map<String, Object>> assets = fetchAssets(assetIds);
+        if (assets.isEmpty()) {
+            task.setStatus(TaskStatusEnum.ERROR);
+            updateById(task);
+            return;
+        }
+
+        // M资产 × N模板 拆分
+        int total = assetIds.size() * templates.size();
+        task.setTotalItems(total);
+        updateById(task);
+
+        List<TaskItemMessage> messages = buildMessages(task, assetIds, templateIds, assets, templates);
+        if (!messages.isEmpty()) {
+            taskProducerService.sendAsync(messages, failedMsg ->
+                    taskItemMapper.update(null,
+                            new LambdaUpdateWrapper<TaskItem>()
+                                    .eq(TaskItem::getItemId, failedMsg.getItemId())
+                                    .set(TaskItem::getStatus, TaskItemStatusEnum.FAILED)));
+        }
+    }
+
+    private Map<Long, Map<String, Object>> fetchAssets(List<Long> assetIds) {
+        Map<Long, Map<String, Object>> assets = new LinkedHashMap<>();
+        for (Long assetId : assetIds) {
+            try {
+                var resp = assetServiceFeign.getAsset(assetId);
+                if (resp != null && resp.getData() != null) {
+                    assets.put(assetId, resp.getData());
+                }
+            } catch (Exception e) {
+                log.warn("拉取资产失败 assetId={}: {}", assetId, e.getMessage());
+            }
+        }
+        return assets;
+    }
+
+    private List<TaskItemMessage> buildMessages(Task task, List<Long> assetIds,
+                                                 List<Long> templateIds,
+                                                 Map<Long, Map<String, Object>> assets,
+                                                 Map<Long, VulTemplateDetectDTO> templates) {
+        List<TaskItemMessage> messages = new ArrayList<>();
+        long now = System.currentTimeMillis();
+
+        for (Long assetId : assetIds) {
+            Map<String, Object> asset = assets.get(assetId);
+            if (asset == null) continue;
+
+            String protocol = (String) asset.getOrDefault("requestProtocol", "https");
+            String host = (String) asset.getOrDefault("requestHost", "");
+            int port = asset.get("requestPort") instanceof Number n ? n.intValue() : 443;
+            String path = (String) asset.getOrDefault("requestPath", "/");
+
+            for (Long templateId : templateIds) {
+                VulTemplateDetectDTO tpl = templates.get(templateId);
+                if (tpl == null) continue;
+
+                TaskItem item = new TaskItem();
+                item.setTaskId(task.getTaskId());
+                item.setAssetId(assetId);
+                item.setVulId(templateId);
+                item.setStatus(TaskItemStatusEnum.PENDING);
+                taskItemMapper.insert(item);
+
+                TaskItemMessage msg = new TaskItemMessage();
+                msg.setTaskId(task.getTaskId());
+                msg.setItemId(item.getItemId());
+                msg.setTenantId(1L);
+                msg.setCreatedAt(now);
+                msg.setAssetProtocol(protocol);
+                msg.setAssetHost(host);
+                msg.setAssetPort(port);
+                msg.setAssetPath(path);
+                msg.setTemplateId(tpl.getTemplateId());
+                msg.setFlow(tpl.getFlow());
+                msg.setVariables(tpl.getVariables());
+                msg.setHttpSteps(toHttpSteps(tpl.getHttpSteps()));
+                messages.add(msg);
+            }
+        }
+        return messages;
+    }
+
+    private List<TaskItemMessage.HttpStep> toHttpSteps(
+            List<VulTemplateDetectDTO.HttpStepDetect> steps) {
+        if (steps == null) return null;
+        return steps.stream().map(s -> {
+            TaskItemMessage.HttpStep hs = new TaskItemMessage.HttpStep();
+            hs.setStepOrder(s.getStepOrder());
+            hs.setMethod(s.getMethod());
+            hs.setPath(s.getPath());
+            hs.setHeaders(s.getHeaders());
+            hs.setBody(s.getBody());
+            hs.setRaw(s.getRaw());
+            hs.setAttack(s.getAttack());
+            hs.setMatchersCondition(s.getMatchersCondition());
+            if (s.getMatchers() != null) {
+                hs.setMatchers(s.getMatchers().stream().map(m -> {
+                    TaskItemMessage.Matcher hm = new TaskItemMessage.Matcher();
+                    hm.setType(m.getType()); hm.setPart(m.getPart());
+                    hm.setCondition(m.getCondition()); hm.setNegative(m.getNegative());
+                    hm.setCaseInsensitive(m.getCaseInsensitive()); hm.setConfig(m.getConfig());
+                    return hm;
+                }).toList());
+            }
+            if (s.getExtractors() != null) {
+                hs.setExtractors(s.getExtractors().stream().map(e -> {
+                    TaskItemMessage.Extractor he = new TaskItemMessage.Extractor();
+                    he.setType(e.getType()); he.setPart(e.getPart());
+                    he.setName(e.getName()); he.setConfig(e.getConfig());
+                    he.setInternal(e.getInternal()); he.setGroupNum(e.getGroupNum());
+                    return he;
+                }).toList());
+            }
+            return hs;
+        }).toList();
     }
 
     @LogExecutionTime("查询任务详情")
@@ -214,7 +221,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @LogExecutionTime("任务分页查询")
     @Override
     public ListResult<PageTaskVO.Response> pageQuery(PageTaskVO.Request request) {
-        int pageSize = Math.min(request.getPageSize() != null ? request.getPageSize() : 10, PAGE_SIZE_MAX);
+        int pageSize = Math.min(request.getPageSize() != null ? request.getPageSize() : 10, 100);
         int pageNum = request.getPage() != null ? request.getPage() : 1;
 
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<Task>()
