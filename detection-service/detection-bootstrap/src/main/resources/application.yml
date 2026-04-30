@@ -1,9 +1,6 @@
 spring:
   application:
     name: detection-service
-  main:
-    web-application-type: none
-
   profiles:
     active: dev
 
@@ -29,6 +26,18 @@ spring:
       minimum-idle: 5
       idle-timeout: 600000
       max-lifetime: 1800000
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      database: 0
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
 
 # RocketMQ 消费者配置（前缀为 rocketmq.，非 spring.rocketmq.）
 rocketmq:

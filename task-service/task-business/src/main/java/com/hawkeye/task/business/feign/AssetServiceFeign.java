@@ -13,6 +13,6 @@ import java.util.Map;
 @FeignClient(name = "asset-service", path = "/asset")
 public interface AssetServiceFeign {
 
-    @GetMapping("/internal/{assetId}")
+    @GetMapping("/{assetId}")
     ApiResponse<Map<String, Object>> getAsset(@PathVariable("assetId") Long assetId);
 }

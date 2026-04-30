@@ -10,12 +10,14 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 模板检测配置缓存（task-service 侧）。
  * L1: Caffeine 本地（2000条/30min），L2: Redis 共享（30min），未命中 → Feign vul-service。
+ * Redis 不可用时自动降级，直接走 Feign。
  */
 @Slf4j
 @Component
@@ -41,25 +43,37 @@ public class TemplateCache {
         VulTemplateDetectDTO cached = caffeineCache.getIfPresent(templateId);
         if (cached != null) return cached;
 
+        // L2 Redis：不可用时降级跳过
         String redisKey = REDIS_PREFIX + templateId;
-        String json = redisTemplate.opsForValue().get(redisKey);
-        if (json != null) {
-            VulTemplateDetectDTO dto = JSON.parseObject(json, VulTemplateDetectDTO.class);
-            caffeineCache.put(templateId, dto);
-            return dto;
+        try {
+            String json = redisTemplate.opsForValue().get(redisKey);
+            if (json != null) {
+                VulTemplateDetectDTO dto = JSON.parseObject(json, VulTemplateDetectDTO.class);
+                if (dto != null) {
+                    caffeineCache.put(templateId, dto);
+                    return dto;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Redis 不可用，跳过 L2 缓存: {}", e.getMessage());
         }
 
+        // Feign 穿透
         log.debug("缓存未命中，Feign 查 vul-service: templateId={}", templateId);
         VulTemplateDetectDTO dto = vulServiceFeign.getTemplate(templateId).getData();
         if (dto != null) {
-            redisTemplate.opsForValue().set(redisKey, JSON.toJSONString(dto), TTL);
+            try {
+                redisTemplate.opsForValue().set(redisKey, JSON.toJSONString(dto), TTL);
+            } catch (Exception e) {
+                log.debug("Redis 写缓存失败，不影响主流程: {}", e.getMessage());
+            }
             caffeineCache.put(templateId, dto);
         }
         return dto;
     }
 
     public Map<Long, VulTemplateDetectDTO> batchGet(List<Long> templateIds) {
-        Map<Long, VulTemplateDetectDTO> result = new java.util.LinkedHashMap<>();
+        Map<Long, VulTemplateDetectDTO> result = new LinkedHashMap<>();
         for (Long id : templateIds) {
             VulTemplateDetectDTO dto = get(id);
             if (dto != null) result.put(id, dto);

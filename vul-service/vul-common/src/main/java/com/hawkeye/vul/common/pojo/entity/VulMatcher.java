@@ -1,6 +1,7 @@
 package com.hawkeye.vul.common.pojo.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.common.utils.pojo.entity.BaseEntity;
@@ -31,6 +32,8 @@ public class VulMatcher extends BaseEntity {
     private String part;
 
     /** and / or */
+    /** and / or。列名是 MySQL 保留字，需转义 */
+    @TableField("`condition`")
     private String condition;
 
     private Boolean negative;

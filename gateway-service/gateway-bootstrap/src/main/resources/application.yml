@@ -48,6 +48,13 @@ spring:
               filters:
                 - StripPrefix=1
 
+            - id: task-service
+              uri: lb://task-service
+              predicates:
+                - Path=/api/task/**
+              filters:
+                - StripPrefix=1
+
           # CORS 统一在这里配置
           globalcors:
             cors-configurations:
