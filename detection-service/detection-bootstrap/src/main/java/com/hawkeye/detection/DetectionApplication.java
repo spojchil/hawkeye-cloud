@@ -3,7 +3,6 @@ package com.hawkeye.detection;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.concurrent.CountDownLatch;
@@ -11,7 +10,6 @@ import java.util.concurrent.CountDownLatch;
 @Slf4j
 @SpringBootApplication
 @EnableScheduling
-@EnableFeignClients(basePackages = "com.hawkeye.detection.business.feign")
 public class DetectionApplication {
     public static void main(String[] args) throws InterruptedException {
         SpringApplication.run(DetectionApplication.class, args);

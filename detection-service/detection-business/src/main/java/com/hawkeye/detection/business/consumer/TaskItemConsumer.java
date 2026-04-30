@@ -37,9 +37,9 @@ public class TaskItemConsumer implements RocketMQListener<TaskItemMessage> {
     @Override
     @LogExecutionTime
     public void onMessage(TaskItemMessage message) {
-        log.debug("收到检测消息: taskId={}, itemId={}, assetId={}, vulId={}",
+        log.debug("收到检测消息: taskId={}, itemId={}, templateId={}, host={}",
                 message.getTaskId(), message.getItemId(),
-                message.getAssetId(), message.getVulId());
+                message.getTemplateId(), message.getAssetHost());
 
         // ★ ThreadLocal 在当前单线程消费场景下安全。
         //    如果后续引入虚拟线程并发执行 detectionEngine.execute()，

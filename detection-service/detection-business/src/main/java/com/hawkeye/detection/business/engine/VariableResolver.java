@@ -1,45 +1,40 @@
 package com.hawkeye.detection.business.engine;
 
-import cn.hutool.core.util.StrUtil;
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.TypeReference;
-import com.hawkeye.detection.common.pojo.dto.AssetDTO;
-import com.hawkeye.detection.common.pojo.dto.VulTemplateDTO;
-
 import java.security.SecureRandom;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 变量解析器——将模板中的占位符替换为实际值。
+ * 变量解析器 — 将模板占位符替换为实际值。
  * <p>
- * 优先级：
- * 1. 上一步 Extractor 提取的变量（最高）
- * 2. 模板 variables 字段定义的变量
- * 3. Asset 内置占位符（BaseURL / Hostname / RootURL / Port / Path）
- * 4. 随机生成函数（rand_base / randstr / rand_int）
+ * 优先级：Extractor 提取变量 > 模板 variables > Asset 内置占位符 > 随机生成函数
  */
 public class VariableResolver {
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(\\w+(?:\\([^)]*\\))?)\\}\\}");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private final AssetDTO asset;
-    private final VulTemplateDTO template;
-    private final Map<String, Object> context;
+    private final Map<String, Object> context = new HashMap<>();
 
-    public VariableResolver(AssetDTO asset, VulTemplateDTO template) {
-        this.asset = asset;
-        this.template = template;
-        this.context = new HashMap<>();
-        initTemplateVars();
+    private final String protocol;
+    private final String host;
+    private final int port;
+    private final String path;
+
+    public VariableResolver(String protocol, String host, Integer port, String path,
+                            Map<String, Object> templateVars) {
+        this.protocol = protocol != null ? protocol : "https";
+        this.host = host != null ? host : "";
+        this.port = port != null ? port : 443;
+        this.path = path != null ? path : "/";
+        if (templateVars != null) {
+            context.putAll(templateVars);
+        }
     }
 
-    /** 后续步骤写入的变量（从 Extractor 提取） */
     public void put(String key, Object value) {
         context.put(key, value);
     }
@@ -56,68 +51,39 @@ public class VariableResolver {
         while (m.find()) {
             String expr = m.group(1);
             String replacement = resolveExpr(expr);
-            m.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : m.group(0));
+            m.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : "");
         }
         m.appendTail(sb);
         return sb.toString();
     }
 
-    /** 解析 {{expression}} 中的表达式 */
     private String resolveExpr(String expr) {
-        // 内置占位符
-        if ("BaseURL".equals(expr) || "baseurl".equalsIgnoreCase(expr)) {
-            return buildBaseUrl();
-        }
-        if ("Hostname".equals(expr) || "hostname".equalsIgnoreCase(expr)) {
-            return asset.getRequestHost();
-        }
-        if ("RootURL".equals(expr) || "rooturl".equalsIgnoreCase(expr)) {
-            return buildRootUrl();
-        }
-        if ("Port".equals(expr) || "port".equalsIgnoreCase(expr)) {
-            return String.valueOf(asset.getRequestPort() != null ? asset.getRequestPort() : 443);
-        }
-        if ("Path".equals(expr) || "path".equalsIgnoreCase(expr)) {
-            return asset.getRequestPath() != null ? asset.getRequestPath() : "/";
-        }
+        if ("BaseURL".equalsIgnoreCase(expr)) return buildBaseUrl();
+        if ("Hostname".equalsIgnoreCase(expr)) return host;
+        if ("RootURL".equalsIgnoreCase(expr)) return buildRootUrl();
+        if ("Port".equalsIgnoreCase(expr)) return String.valueOf(port);
+        if ("Path".equalsIgnoreCase(expr)) return path;
 
-        // 随机生成函数: rand_base(N)
-        if (expr.startsWith("rand_base(")) {
-            int len = extractIntArg(expr);
-            return randomAlphanumeric(len);
-        }
-        if ("randstr".equals(expr)) {
-            return randomLowercase(8);
-        }
-        if (expr.startsWith("rand_int(")) {
-            int max = extractIntArg(expr);
-            return String.valueOf(ThreadLocalRandom.current().nextInt(max));
-        }
+        if (expr.startsWith("rand_base(")) return randomAlphanumeric(extractIntArg(expr));
+        if ("randstr".equals(expr)) return randomLowercase(8);
+        if (expr.startsWith("rand_int(")) return String.valueOf(ThreadLocalRandom.current().nextInt(extractIntArg(expr)));
 
-        // 上下文变量
         Object val = context.get(expr);
         return val != null ? val.toString() : "";
     }
 
     private String buildBaseUrl() {
-        return buildRootUrl() + (StrUtil.isNotBlank(asset.getRequestPath()) ? asset.getRequestPath() : "/");
+        StringBuilder sb = new StringBuilder(buildRootUrl());
+        sb.append(path.startsWith("/") ? path : "/" + path);
+        return sb.toString();
     }
 
     private String buildRootUrl() {
-        String protocol = StrUtil.isNotBlank(asset.getRequestProtocol())
-                ? asset.getRequestProtocol() : "https";
-        int port = asset.getRequestPort() != null ? asset.getRequestPort() : 443;
-        if (port == 443 || port == 80) {
-            return protocol + "://" + asset.getRequestHost();
+        StringBuilder sb = new StringBuilder(protocol).append("://").append(host);
+        if (!((protocol.equals("https") && port == 443) || (protocol.equals("http") && port == 80))) {
+            sb.append(":").append(port);
         }
-        return protocol + "://" + asset.getRequestHost() + ":" + port;
-    }
-
-    private void initTemplateVars() {
-        Map<String, Object> vars = template.getVariables();
-        if (vars != null && !vars.isEmpty()) {
-            context.putAll(vars);
-        }
+        return sb.toString();
     }
 
     private int extractIntArg(String expr) {
@@ -128,18 +94,13 @@ public class VariableResolver {
     private String randomAlphanumeric(int len) {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         StringBuilder sb = new StringBuilder(len);
-        for (int i = 0; i < len; i++) {
-            sb.append(chars.charAt(SECURE_RANDOM.nextInt(chars.length())));
-        }
+        for (int i = 0; i < len; i++) sb.append(chars.charAt(SECURE_RANDOM.nextInt(chars.length())));
         return sb.toString();
     }
 
     private String randomLowercase(int len) {
         StringBuilder sb = new StringBuilder(len);
-        for (int i = 0; i < len; i++) {
-            sb.append((char) ('a' + SECURE_RANDOM.nextInt(26)));
-        }
+        for (int i = 0; i < len; i++) sb.append((char) ('a' + SECURE_RANDOM.nextInt(26)));
         return sb.toString();
     }
-
 }
