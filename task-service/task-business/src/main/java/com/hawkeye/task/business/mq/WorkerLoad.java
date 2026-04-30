@@ -1,4 +1,4 @@
-package com.hawkeye.task.mq;
+package com.hawkeye.task.business.mq;
 
 import lombok.Data;
 

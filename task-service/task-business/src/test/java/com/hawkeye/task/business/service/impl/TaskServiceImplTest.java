@@ -45,6 +45,14 @@ class TaskServiceImplTest {
     @Mock
     private TaskItemService taskItemService;
     @Mock
+    private com.hawkeye.task.business.mapper.TaskItemMapper taskItemMapper;
+    @Mock
+    private com.hawkeye.task.business.cache.TemplateCache templateCache;
+    @Mock
+    private com.hawkeye.task.business.feign.AssetServiceFeign assetServiceFeign;
+    @Mock
+    private com.hawkeye.task.business.mq.TaskProducerService taskProducerService;
+    @Mock
     private LambdaQueryChainWrapper<Task> lambdaChain;
     @Mock
     private LambdaUpdateChainWrapper<Task> lambdaUpdateChain;
@@ -60,7 +68,8 @@ class TaskServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemService));
+        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemService, taskItemMapper,
+                templateCache, assetServiceFeign, taskProducerService));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
         doReturn(lambdaChain).when(taskService).lambdaQuery();
@@ -77,8 +86,8 @@ class TaskServiceImplTest {
             TaskVO.Request req = inv.getArgument(0);
             Task task = new Task();
             task.setTaskName(req.getTaskName());
-            task.setTargetIds(req.getTargetIds());
-            task.setVulIds(req.getVulIds());
+            task.setTargetIds(req.getAssetIds().stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(",")));
+            task.setVulIds(req.getTemplateIds().stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(",")));
             task.setPriority(req.getPriority() != null ? req.getPriority() : 1);
             return task;
         });
@@ -124,8 +133,8 @@ class TaskServiceImplTest {
     void createSuccess() {
         TaskVO.Request request = new TaskVO.Request();
         request.setTaskName("常规扫描");
-        request.setTargetIds("1,2,3");
-        request.setVulIds("10,20,30");
+        request.setAssetIds(List.of(1L, 2L, 3L));
+        request.setTemplateIds(List.of(10L, 20L, 30L));
         request.setPriority(1);
 
         when(taskMapper.insert(any(Task.class))).thenReturn(1);
@@ -150,8 +159,8 @@ class TaskServiceImplTest {
     void createDefaultPriority() {
         TaskVO.Request request = new TaskVO.Request();
         request.setTaskName("test");
-        request.setTargetIds("1");
-        request.setVulIds("1");
+        request.setAssetIds(List.of(1L));
+        request.setTemplateIds(List.of(1L));
 
         when(taskMapper.insert(any(Task.class))).thenReturn(1);
 

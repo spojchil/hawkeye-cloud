@@ -142,11 +142,7 @@
                 <version>${knife4j.version}</version>
             </dependency>
 
-            <!-- Redis客户端 -->
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter-data-redis</artifactId>
-            </dependency>
+            <!-- Redis客户端（版本由 spring-boot-starter-parent BOM 管理）-->
 
             <!-- Lettuce 连接池 (Spring Boot默认) -->
             <dependency>
