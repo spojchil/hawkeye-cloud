@@ -43,18 +43,25 @@ public class VariableResolver {
         return context.get(key);
     }
 
-    /** 替换字符串中所有 {{...}} 占位符 */
+    /** 替换字符串中所有 {{...}} 占位符，递归解析直到无残留 */
     public String resolve(String input) {
         if (input == null) return null;
-        Matcher m = PLACEHOLDER.matcher(input);
-        StringBuilder sb = new StringBuilder();
-        while (m.find()) {
-            String expr = m.group(1);
-            String replacement = resolveExpr(expr);
-            m.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : "");
+        String result = input;
+        int maxIter = 5; // 防止循环引用无限递归
+        while (maxIter-- > 0 && result.contains("{{")) {
+            Matcher m = PLACEHOLDER.matcher(result);
+            if (!m.find()) break;
+            StringBuilder sb = new StringBuilder();
+            m.reset();
+            while (m.find()) {
+                String expr = m.group(1);
+                String replacement = resolveExpr(expr);
+                m.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : "");
+            }
+            m.appendTail(sb);
+            result = sb.toString();
         }
-        m.appendTail(sb);
-        return sb.toString();
+        return result;
     }
 
     private String resolveExpr(String expr) {

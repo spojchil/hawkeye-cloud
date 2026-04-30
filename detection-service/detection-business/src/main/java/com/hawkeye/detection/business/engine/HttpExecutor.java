@@ -49,7 +49,19 @@ public class HttpExecutor {
         HttpResponseContext lastResponse = null;
         for (String path : paths) {
             String resolvedPath = resolver.resolve(path);
-            URI uri = URI.create(resolvedPath);
+            URI uri;
+            try {
+                uri = URI.create(resolvedPath);
+            } catch (IllegalArgumentException e) {
+                // SQL注入等模板URL含特殊字符（' 等），回退为编码方式
+                try {
+                    uri = new URI(null, null,
+                            java.net.URLEncoder.encode(resolvedPath, java.nio.charset.StandardCharsets.UTF_8),
+                            null);
+                } catch (Exception ex) {
+                    throw new IOException("无法构建 URI: " + resolvedPath, ex);
+                }
+            }
 
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(uri)
@@ -106,8 +118,21 @@ public class HttpExecutor {
         String path = requestLine.length > 1 ? requestLine[1] : "/";
 
         // 解析后续的 Header 行（直到空行）
+        String uriPath = resolver.resolve(path);
+        URI rawUri;
+        try {
+            rawUri = URI.create(uriPath);
+        } catch (IllegalArgumentException e) {
+            try {
+                rawUri = new URI(null, null,
+                        java.net.URLEncoder.encode(uriPath, java.nio.charset.StandardCharsets.UTF_8),
+                        null);
+            } catch (Exception ex) {
+                throw new IOException("无法构建 URI: " + uriPath, ex);
+            }
+        }
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(resolver.resolve(path)))
+                .uri(rawUri)
                 .timeout(REQUEST_TIMEOUT);
 
         int i = 1;
