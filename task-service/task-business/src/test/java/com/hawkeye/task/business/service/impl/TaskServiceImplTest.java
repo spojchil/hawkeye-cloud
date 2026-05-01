@@ -50,6 +50,8 @@ class TaskServiceImplTest {
     @Mock
     private com.hawkeye.task.business.mq.TaskProducerService taskProducerService;
     @Mock
+    private com.hawkeye.task.business.mapper.DetectionResultMapper detectionResultMapper;
+    @Mock
     private LambdaQueryChainWrapper<Task> lambdaChain;
     @Mock
     private LambdaUpdateChainWrapper<Task> lambdaUpdateChain;
@@ -66,7 +68,7 @@ class TaskServiceImplTest {
     @BeforeEach
     void setUp() {
         taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper,
-                templateCache, assetServiceFeign, taskProducerService));
+                templateCache, assetServiceFeign, taskProducerService, detectionResultMapper));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
         // stub 异步拆分，单元测试聚焦 create/getById/pageQuery/cancel 逻辑

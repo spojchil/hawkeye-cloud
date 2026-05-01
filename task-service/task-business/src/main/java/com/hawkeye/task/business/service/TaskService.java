@@ -6,6 +6,8 @@ import com.hawkeye.task.common.pojo.entity.Task;
 import com.hawkeye.task.common.pojo.vo.task.PageTaskVO;
 import com.hawkeye.task.common.pojo.vo.task.TaskVO;
 
+import com.hawkeye.task.common.pojo.vo.task.TaskResultVO;
+
 import java.util.List;
 
 public interface TaskService extends IService<Task> {
@@ -19,4 +21,6 @@ public interface TaskService extends IService<Task> {
     void cancel(Long taskId);
 
     List<Long> listRunningTaskIds();
+
+    ListResult<TaskResultVO> listResults(Long taskId, String status, Integer page, Integer size);
 }

@@ -13,6 +13,8 @@ import com.common.utils.response.ListResult;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
 import com.hawkeye.task.business.cache.TemplateCache;
 import com.hawkeye.task.business.feign.AssetServiceFeign;
+import com.hawkeye.detection.common.pojo.entity.DetectionResult;
+import com.hawkeye.task.business.mapper.DetectionResultMapper;
 import com.hawkeye.task.business.mapper.TaskItemMapper;
 import com.hawkeye.task.business.mapper.TaskMapper;
 import com.hawkeye.task.business.mapstruct.TaskMapstruct;
@@ -23,6 +25,7 @@ import com.hawkeye.task.common.pojo.entity.Task;
 import com.hawkeye.task.common.pojo.entity.TaskItem;
 import com.hawkeye.task.business.service.TaskService;
 import com.hawkeye.task.common.pojo.vo.task.PageTaskVO;
+import com.hawkeye.task.common.pojo.vo.task.TaskResultVO;
 import com.hawkeye.task.common.pojo.vo.task.TaskVO;
 import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
 import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
@@ -53,6 +56,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     private final TemplateCache templateCache;
     private final AssetServiceFeign assetServiceFeign;
     private final TaskProducerService taskProducerService;
+    private final DetectionResultMapper detectionResultMapper;
 
     @LogExecutionTime("创建任务")
     @Override
@@ -263,5 +267,32 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return lambdaQuery().eq(Task::getStatus, TaskStatusEnum.RUNNING)
                 .select(Task::getTaskId).list()
                 .stream().map(Task::getTaskId).toList();
+    }
+
+    @Override
+    @LogExecutionTime("查询检测结果")
+    public ListResult<TaskResultVO> listResults(Long taskId, String status, Integer page, Integer size) {
+        LambdaQueryWrapper<DetectionResult> wrapper = new LambdaQueryWrapper<DetectionResult>()
+                .eq(DetectionResult::getTaskId, taskId)
+                .eq(status != null && !status.isEmpty(), DetectionResult::getStatus, status)
+                .orderByAsc(DetectionResult::getTaskItemId);
+
+        int pageSize = Math.min(size != null ? size : 20, 200);
+        int pageNum = page != null ? page : 1;
+        Page<DetectionResult> pg = new Page<>(pageNum, pageSize);
+        IPage<DetectionResult> result = detectionResultMapper.selectPage(pg, wrapper);
+
+        List<TaskResultVO> vos = result.getRecords().stream().map(r -> {
+            TaskResultVO vo = new TaskResultVO();
+            vo.setId(r.getId()); vo.setTaskId(r.getTaskId()); vo.setTaskItemId(r.getTaskItemId());
+            vo.setTemplateId(r.getTemplateId()); vo.setAssetId(r.getAssetId());
+            vo.setStatus(r.getStatus()); vo.setResponseStatusCode(r.getResponseStatusCode());
+            vo.setResponseSize(r.getResponseSize()); vo.setResponseSummary(r.getResponseSummary());
+            vo.setMatchedMatcher(r.getMatchedMatcher()); vo.setMatchedAt(r.getMatchedAt());
+            vo.setErrorMessage(r.getErrorMessage()); vo.setDurationMs(r.getDurationMs());
+            return vo;
+        }).toList();
+
+        return ListResult.result((int) result.getTotal(), vos);
     }
 }
