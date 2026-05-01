@@ -2,7 +2,6 @@ package com.hawkeye.task.common.pojo.vo.task;
 
 import com.hawkeye.task.common.enums.TaskStatusEnum;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -12,11 +11,10 @@ public class PageTaskVO {
     @Data
     public static class Request {
 
-        // TODO 我感觉我的这些错误信息不太标准
-        @Min(value = 1,message = "页数从1开始")
+        @Min(value = 1, message = "页码不能小于1")
         private Integer page;
 
-        @Size(min=10, max=500,message = "页的尺寸在10~500之间")
+        @Min(value = 1, message = "每页条数不能小于1")
         private Integer pageSize;
 
         /**

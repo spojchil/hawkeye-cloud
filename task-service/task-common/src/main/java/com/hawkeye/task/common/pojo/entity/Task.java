@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  * 状态流转: PENDING → RUNNING(拆分开始) → DONE/ERROR/CANCELLED。
  * completedItems 由 TaskProgressScheduler 每 2s 轮询 Redis 回填。
  *
- * <p>TODO: 补充 userId 字段关联创建者账号。
+ * <p>创建者账号由 BaseEntity.createBy 提供，无需额外 userId 字段。
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
