@@ -6,6 +6,8 @@
 
 ## `POST /auth/login` — 登录
 
+**返回** `ApiResponse<LoginVO>`
+
 ```json
 // Request
 { "username": "admin", "password": "123456" }

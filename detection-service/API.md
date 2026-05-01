@@ -1,7 +1,15 @@
 # Detection-Service
 
-> **纯 Worker，无 REST API。** 只通过 RocketMQ 消费 `task_item_topic`。
-> 启动端口 8006（仅用于健康检查和 Nacos 注册）。
+> **纯 Worker，无 REST API。** 通过 RocketMQ 消费 `task_item_topic`，启动端口 8006（健康检查+Nacos注册）。
+
+| 配置项 | 值 |
+|--------|-----|
+| Topic | `task_item_topic` |
+| ConsumerGroup | `task_item_consumer_group` |
+| 消费模式 | CLUSTERING |
+| NameServer | `localhost:9876` |
+| 最大线程 | 64 |
+| 重试 | 16 次递增延迟 → DLQ |
 
 ---
 
