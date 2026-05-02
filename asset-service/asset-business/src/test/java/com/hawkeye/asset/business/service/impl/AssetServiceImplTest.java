@@ -1,12 +1,12 @@
 package com.hawkeye.asset.business.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.hawkeye.asset.business.mapstruct.AssetMapstruct;
 import com.hawkeye.asset.business.mapper.AssetCategoryMappingMapper;
 import com.hawkeye.asset.business.mapper.AssetMapper;
 import com.hawkeye.asset.common.enums.AssetRiskEnum;
 import com.hawkeye.asset.common.enums.AssetStatusEnum;
-import com.hawkeye.asset.common.enums.RequestMethodEnum;
 import com.hawkeye.asset.common.pojo.entity.Asset;
 import com.hawkeye.asset.common.pojo.entity.AssetCategoryMapping;
 import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
@@ -34,7 +34,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("AssetServiceImpl 资产服务单元测试")
@@ -49,11 +48,6 @@ class AssetServiceImplTest {
 
     private AssetServiceImpl assetService;
 
-    /**
-     * 初始化 MyBatis-Plus 实体表元数据，使得 {@link com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper}
-     * 和 {@link com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper} 能解析实体字段名。
-     * 在 Spring 环境中由 MyBatis-Plus 自动配置完成，单元测试需手动初始化。
-     */
     @BeforeAll
     static void initMybatisPlusTableInfo() {
         Configuration configuration = new Configuration();
@@ -64,27 +58,17 @@ class AssetServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        /*
-         * @InjectMocks 无法将 mock 注入到父类 ServiceImpl 的 protected baseMapper 字段，
-         * 因此手动构造实例并通过 ReflectionTestUtils 注入。
-         */
         assetService = new AssetServiceImpl(assetMapstruct, assetCategoryMappingMapper);
         ReflectionTestUtils.setField(assetService, "baseMapper", assetMapper);
 
-        /*
-         * MapStruct 实现类是编译期生成的，单元测试不走 Spring 容器拿不到 Impl 实例，
-         * 所以 mock 掉 MapStruct 接口，用 thenAnswer 模拟真实的字段拷贝行为。
-         */
         when(assetMapstruct.toEntity(any(AssetVO.Request.class))).thenAnswer(inv -> {
             AssetVO.Request req = inv.getArgument(0);
             Asset asset = new Asset();
             asset.setName(req.getName());
-            asset.setRequestMethod(req.getRequestMethod());
             asset.setRequestProtocol(req.getRequestProtocol());
             asset.setRequestHost(req.getRequestHost());
             asset.setRequestPort(req.getRequestPort());
             asset.setRequestPath(req.getRequestPath());
-            asset.setRequestHeader(req.getRequestHeader());
             asset.setDescription(req.getDescription());
             asset.setStatus(req.getStatus());
             asset.setRiskLevel(req.getRiskLevel());
@@ -96,12 +80,10 @@ class AssetServiceImplTest {
             AssetVO.Response resp = new AssetVO.Response();
             resp.setAssetId(a.getAssetId());
             resp.setName(a.getName());
-            resp.setRequestMethod(a.getRequestMethod());
             resp.setRequestProtocol(a.getRequestProtocol());
             resp.setRequestHost(a.getRequestHost());
             resp.setRequestPort(a.getRequestPort());
             resp.setRequestPath(a.getRequestPath());
-            resp.setRequestHeader(a.getRequestHeader());
             resp.setDescription(a.getDescription());
             resp.setStatus(a.getStatus());
             resp.setRiskLevel(a.getRiskLevel());
@@ -328,7 +310,7 @@ class AssetServiceImplTest {
         asset.setRequestPort(443);
         asset.setRequestPath("/api");
         asset.setDescription("目标资产");
-        when(assetMapper.selectById(1L)).thenReturn(asset);
+        when(assetMapper.selectOne(any())).thenReturn(asset);
 
         AssetVO.Response response = assetService.getById(1L);
 
@@ -347,7 +329,7 @@ class AssetServiceImplTest {
     @Test
     @DisplayName("根据 ID 查询 — 资产不存在，抛出 ApiException（404）")
     void getByIdNotFound() {
-        when(assetMapper.selectById(anyLong())).thenReturn(null);
+        when(assetMapper.selectOne(any())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> assetService.getById(999L));
@@ -365,7 +347,6 @@ class AssetServiceImplTest {
     void createWithDefaults() {
         AssetVO.Request request = new AssetVO.Request();
         request.setName("new.example.com");
-        request.setRequestMethod(RequestMethodEnum.GET);
         request.setRequestProtocol("https");
         request.setRequestHost("10.0.0.50");
         request.setRequestPort(8443);
@@ -391,7 +372,6 @@ class AssetServiceImplTest {
     void createWithExplicitValues() {
         AssetVO.Request request = new AssetVO.Request();
         request.setName("explicit.example.com");
-        request.setRequestMethod(RequestMethodEnum.POST);
         request.setRequestProtocol("http");
         request.setRequestHost("10.0.0.60");
         request.setRequestPort(8080);
@@ -406,7 +386,6 @@ class AssetServiceImplTest {
 
         assertAll("创建成功，保留指定值",
                 () -> assertEquals("explicit.example.com", response.getName()),
-                () -> assertEquals(RequestMethodEnum.POST, response.getRequestMethod()),
                 () -> assertEquals("http", response.getRequestProtocol()),
                 () -> assertEquals("10.0.0.60", response.getRequestHost()),
                 () -> assertEquals(8080, response.getRequestPort()),
@@ -428,7 +407,7 @@ class AssetServiceImplTest {
         when(assetMapper.update(isNull(), any())).thenReturn(1);
 
         Asset updatedAsset = buildAsset(1L, "updated-name", "10.0.0.1", AssetRiskEnum.LOW, AssetStatusEnum.ENABLED);
-        when(assetMapper.selectById(1L)).thenReturn(updatedAsset);
+        when(assetMapper.selectOne(any())).thenReturn(updatedAsset);
 
         AssetVO.Response response = assetService.update(1L, request);
 
@@ -437,7 +416,7 @@ class AssetServiceImplTest {
                 () -> assertEquals(1L, response.getAssetId())
         );
         verify(assetMapper).update(isNull(), any());
-        verify(assetMapper).selectById(1L);
+        verify(assetMapper).selectOne(any());
     }
 
     @Test
@@ -455,14 +434,13 @@ class AssetServiceImplTest {
                 () -> assertEquals(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), ex.getCode()),
                 () -> assertEquals("资产不存在", ex.getMessage())
         );
-        verify(assetMapper, never()).selectById(anyLong());
+        verify(assetMapper, never()).selectOne(any());
     }
 
     @Test
     @DisplayName("更新资产 — 所有字段均为 null，抛 ApiException（400），不执行 SQL")
     void updateAllFieldsNull() {
         AssetVO.Request request = new AssetVO.Request();
-        // 不设置任何字段——全部为 null
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> assetService.update(1L, request));
@@ -472,30 +450,31 @@ class AssetServiceImplTest {
                 () -> assertEquals("至少需要提供一个更新字段", ex.getMessage())
         );
         verify(assetMapper, never()).update(any(), any());
-        verify(assetMapper, never()).selectById(anyLong());
+        verify(assetMapper, never()).selectOne(any());
     }
 
     // === 删除资产 delete ===
 
     @Test
-    @DisplayName("删除资产 — 无分类关联，删除成功")
+    @DisplayName("删除资产 — 无分类关联，软删除成功，设置 deletedAt 时间戳")
     void deleteSuccess() {
         Asset asset = buildAsset(1L, "to-delete.com", "10.0.0.1", AssetRiskEnum.LOW, AssetStatusEnum.DISABLED);
-        when(assetMapper.selectById(1L)).thenReturn(asset);
+        when(assetMapper.selectOne(any())).thenReturn(asset);
         when(assetCategoryMappingMapper.selectCount(any())).thenReturn(0L);
-        when(assetMapper.deleteById(1L)).thenReturn(1);
+        when(assetMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         assetService.delete(1L);
 
-        verify(assetMapper).selectById(1L);
+        verify(assetMapper).selectOne(any());
         verify(assetCategoryMappingMapper).selectCount(any());
-        verify(assetMapper).deleteById(1L);
+        verify(assetMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(assetMapper, never()).deleteById(anyLong());
     }
 
     @Test
     @DisplayName("删除资产 — 资产不存在，抛 ApiException（404），不检查关联不执行删除")
     void deleteNotFound() {
-        when(assetMapper.selectById(anyLong())).thenReturn(null);
+        when(assetMapper.selectOne(any())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> assetService.delete(999L));
@@ -504,7 +483,7 @@ class AssetServiceImplTest {
                 () -> assertEquals(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), ex.getCode()),
                 () -> assertEquals("资产不存在", ex.getMessage())
         );
-        verify(assetMapper, never()).deleteById(anyLong());
+        verify(assetMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
         verify(assetCategoryMappingMapper, never()).selectCount(any());
     }
 
@@ -512,7 +491,7 @@ class AssetServiceImplTest {
     @DisplayName("删除资产 — 存在分类关联，抛 ApiException（403），不执行删除")
     void deleteWithMappings() {
         Asset asset = buildAsset(1L, "has-mapping.com", "10.0.0.1", AssetRiskEnum.LOW, AssetStatusEnum.ENABLED);
-        when(assetMapper.selectById(1L)).thenReturn(asset);
+        when(assetMapper.selectOne(any())).thenReturn(asset);
         when(assetCategoryMappingMapper.selectCount(any())).thenReturn(3L);
 
         ApiException ex = assertThrows(ApiException.class,
@@ -522,7 +501,7 @@ class AssetServiceImplTest {
                 () -> assertEquals(CommonErrorCode.OPERATION_DENIED.getCode(), ex.getCode()),
                 () -> assertEquals("该资产存在分类关联，请先移除所有关联再删除", ex.getMessage())
         );
-        verify(assetMapper, never()).deleteById(anyLong());
+        verify(assetMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
     }
 
     // === helper ===
@@ -531,7 +510,6 @@ class AssetServiceImplTest {
         Asset asset = new Asset();
         asset.setAssetId(id);
         asset.setName(name);
-        asset.setRequestMethod(RequestMethodEnum.GET);
         asset.setRequestProtocol("https");
         asset.setRequestHost(host);
         asset.setRequestPort(443);

@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS `asset_category`
 (
     `category_id` BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
     `name`        VARCHAR(128)    NOT NULL COMMENT '分类名称',
-    `parent_id`   BIGINT UNSIGNED COMMENT '父分类ID, NULL=顶级分类',
+    `parent_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '父分类ID, 0=顶级分类',
     `sort_order`  INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '同级排序',
     `description` VARCHAR(500) COMMENT '分类描述',
     `tenant_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS `asset_category_mapping`
     `create_by`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建人, 0=平台',
     `update_by`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新人, 0=平台',
     `deleted_at`  BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
-    PRIMARY KEY (`asset_id`, `category_id`),
+    PRIMARY KEY (`asset_id`, `category_id`,`deleted_at`),
     KEY `idx_category_id` (`category_id`),
     KEY `idx_tenant_id` (`tenant_id`)
 ) ENGINE = InnoDB

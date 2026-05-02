@@ -24,8 +24,7 @@
     "assetId": 1, "name": "测试资产",
     "requestProtocol": "http", "requestHost": "localhost",
     "requestPort": 8001, "requestPath": "/",
-    "requestMethod": "GET", "riskLevel": "UNKNOWN",
-    "status": "DISABLED"
+    "riskLevel": "UNKNOWN", "status": "DISABLED"
 }]}
 ```
 
@@ -38,7 +37,6 @@
     "assetId": 1, "name": "测试资产",
     "requestProtocol": "http", "requestHost": "localhost",
     "requestPort": 8001, "requestPath": "/",
-    "requestMethod": "GET", "requestHeader": null,
     "riskLevel": "UNKNOWN", "status": "DISABLED",
     "description": null, "lastScanTime": null
 }}
@@ -52,7 +50,7 @@
 // Request
 { "name":"新增资产", "requestProtocol":"https",
   "requestHost":"api.example.com", "requestPort":443,
-  "requestPath":"/", "requestMethod":"GET", "categoryId":1 }
+  "requestPath":"/", "categoryId":1 }
 ```
 
 ### `PUT /asset/{assetId}` — 更新
