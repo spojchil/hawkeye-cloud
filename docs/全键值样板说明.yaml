@@ -1,0 +1,427 @@
+# ============================================================
+# Nuclei HTTP 模板 — 全字段键值样板说明
+# ============================================================
+
+# ============================================================
+# 顶层 Template 结构
+# ============================================================
+
+# id — 模板的唯一标识符，类型是 string（必填）
+# 好的命名如：git-config-exposure、CVE-2021-19520
+id: CVE-2021-19520
+
+# info — 模板的元数据信息，类型是 model.Info（必填）
+info:
+  # 模板功能的简短摘要，类型是 string（必填）
+  name: Argument Injection in Ruby Dragonfly
+  # 模板作者，类型是 string 或 []string，多个值可用逗号分隔
+  author: 0xspara,other-author
+  # 模板标签，类型是 string，多个值用逗号分隔
+  tags: cve,cve2021,rce,ruby
+  # 模板的详细描述，类型是 string
+  description: Bower is a package manager which stores package information in the bower.json file
+  # 模板的影响说明，类型是 string
+  impact: Successful exploitation of this vulnerability could allow an attacker to execute arbitrary SQL queries
+  # 参考资料链接列表，类型是 []string
+  reference:
+    - https://github.com/strapi/strapi
+    - https://github.com/getgrav/grav
+  # 严重程度，类型是 枚举。可选值：undefined, info, low, medium, high, critical, unknown
+  severity: high
+  # 自定义元数据，类型是 map，自由 key-value
+  metadata:
+    customField1: customValue1
+    # 可添加任意自定义字段
+  # 分类信息，类型是 model.Classification
+  classification:
+    # CVE 编号，类型是 string
+    cve-id: CVE-2020-14420
+    # CWE 编号，类型是 string
+    cwe-id: CWE-22
+    # CVSS 向量指标，类型是 string
+    cvss-metrics: 3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    # CVSS 评分，类型是 float64（字符串形式）
+    cvss-score: "9.8"
+    # EPSS 评分，类型是 float64（字符串形式）
+    epss-score: "0.42509"
+    # EPSS 百分位数，类型是 float64（字符串形式）
+    epss-percentile: "0.42509"
+    # CPE 标识，类型是 string
+    cpe: cpe:/a:vendor:product:version
+  # 修复建议，类型是 string
+  remediation: Change the default administrative username and password
+
+# flow — 模板的执行流程（JavaScript DSL），类型是 string
+# 用于控制多个 request 的执行顺序和条件逻辑
+flow: |
+  for region in regions {
+      http(0)
+  }
+  for vpc in vpcs {
+      http(1)
+  }
+
+# ============================================================
+# http.Request — HTTP 请求定义（推荐使用 http，requests 已弃用）
+# 类型是 []http.Request
+# ============================================================
+
+# ⚠️ requests 已弃用，请使用 http 代替
+# requests:  # 旧写法，即将移除
+
+http:
+    # ============================================================
+    # --- 请求基本定义 ---
+    # ============================================================
+
+    # request 的可选标识符，类型是 string
+  - id: request-1
+    # request 的可选名称，类型是 string
+    # 指定名称后，模板中多个已命名的 request 可以进行组合匹配
+    name: check-git-config
+
+    # HTTP 请求路径，类型是 []string，支持变量占位符如 {{BaseURL}}
+    path:
+      - '{{BaseURL}}/.git/config'
+
+    # -------- 或者使用 raw 格式（原始 HTTP 请求）--------
+    # raw 包含完整的原始 HTTP 请求文本，类型是 []string
+    # 使用 raw 时不需要单独指定 path / method / headers / body
+    # raw:
+    #   - |-
+    #     GET /etc/passwd HTTP/1.1
+    #     Host: {{Hostname}}
+    #     User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0
+    #     Connection: close
+
+    # HTTP 请求方法，类型是 枚举
+    # 可选值：GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH, PURGE, Debug
+    method: GET
+
+    # HTTP 请求体，类型是 string（可选）
+    body: username=test&password=test
+
+    # HTTP 请求头，类型是 map[string]string
+    headers:
+      Any-Header: Any-Value
+      Content-Type: application/x-www-form-urlencoded
+
+    # ============================================================
+    # --- 攻击 / Payload 相关 ---
+    # ============================================================
+
+    # attack — payload 组合方式，类型是 枚举
+    # 可选值：
+    #   batteringram — 将同一个 payload 同时插入所有已定义的 payload 位置
+    #   pitchfork    — 组合多个 payload 集合（一对一对应）
+    #   clusterbomb  — 为所有 payload 生成排列组合
+    attack: batteringram
+
+    # payloads — 当前 request 的 payload，类型是 map
+    # 支持两种方式：key-value 组合列表，或提供单个文件作为 payload（运行时读取）
+    payloads:
+      username:
+        - admin
+        - root
+        - test
+      password:
+        - admin
+        - password
+        - 123456
+
+    # ============================================================
+    # --- 竞争条件 / 并发控制 ---
+    # ============================================================
+
+    # race — 是否同时发起所有 request（竞争条件攻击），类型是 bool
+    race: false
+    # race_count — 竞争条件攻击中发送 request 的次数，类型是 int
+    race_count: 5
+
+    # threads — 发送 request 的线程数（启用连接池），类型是 int
+    # ⚠️ 使用此参数时 request 中不得包含 Connection: Close
+    threads: 10
+
+    # ============================================================
+    # --- 重定向控制 ---
+    # ============================================================
+
+    # redirects — HTTP Client 是否遵循重定向，类型是 bool
+    redirects: true
+    # max-redirects — 最大重定向次数，类型是 int
+    max-redirects: 5
+    # host-redirects — 是否仅遵循同一主机的重定向，类型是 bool
+    host-redirects: false
+
+    # ============================================================
+    # --- HTTP Pipelining（管道化）---
+    # ============================================================
+
+    # pipeline — 是否使用 HTTP 1.1 Pipelining，类型是 bool
+    # 所有 request 必须是幂等的（GET/POST），可用于竞争条件/高并发场景
+    pipeline: false
+    # pipeline-concurrent-connections — pipelining 的并发连接数，类型是 int
+    pipeline-concurrent-connections: 40
+    # pipeline-requests-per-connection — 每个连接发送的 request 数，类型是 int
+    pipeline-requests-per-connection: 100
+
+    # ============================================================
+    # --- 底层引擎控制 ---
+    # ============================================================
+
+    # unsafe — 是否使用 rawhttp 引擎发送非 RFC 合规的 request，类型是 bool
+    # 启用后客户端不进行任何规范化处理，完全控制 request
+    unsafe: false
+
+    # read-all — 是否强制读取整个 raw unsafe request body，类型是 bool
+    # 忽略任何指定的 Content-Length headers
+    read-all: false
+
+    # disable-path-automerge — 是否禁用目标 URL 路径与 raw request 路径合并，类型是 bool
+    disable-path-automerge: false
+
+    # ============================================================
+    # --- Cookie 控制 ---
+    # ============================================================
+
+    # cookie-reuse — 是否允许在 raw 部分定义的所有 request 中复用 cookie，类型是 bool
+    cookie-reuse: false
+    # disable-cookie — 是否禁用 cookie 复用，类型是 bool
+    disable-cookie: false
+
+    # ============================================================
+    # --- 摘要认证（Digest Authentication）---
+    # ============================================================
+
+    # digest-username — 摘要认证的用户名，类型是 string
+    # digest-username: admin
+    # digest-password — 摘要认证的密码，类型是 string
+    # digest-password: password123
+
+    # ============================================================
+    # --- 响应处理 ---
+    # ============================================================
+
+    # max-size — 读取 HTTP response body 的最大字节数，类型是 int
+    max-size: 2048
+
+    # ============================================================
+    # --- 请求签名 ---
+    # ============================================================
+
+    # signature — request 的签名方法，类型是 枚举
+    # 可选值：AWS
+    # signature: AWS
+    # skip-secret-file — 是否跳过密钥文件中的身份验证/授权，类型是 bool
+    skip-secret-file: false
+
+    # ============================================================
+    # --- 执行控制 ---
+    # ============================================================
+
+    # self-contained — request 是否是自包含的，类型是 bool
+    self-contained: false
+    # stop-at-first-match — 找到匹配时是否立即停止，类型是 bool
+    stop-at-first-match: false
+    # skip-variables-check — 是否跳过未解析变量的检查，类型是 bool
+    skip-variables-check: false
+    # iterate-all — 是否遍历内部提取器提取到的所有值，类型是 bool
+    iterate-all: false
+    # req-condition — 是否自动为 request 分配编号并保留历史（用于多 request 条件匹配），类型是 bool
+    req-condition: false
+
+    # ============================================================
+    # --- 全局 Matcher ---
+    # ============================================================
+
+    # global-matchers — 将 matchers 标记为静态，全局应用于其他模板的结果事件，类型是 bool
+    global-matchers: false
+
+    # ============================================================
+    # --- matchers-condition — 多个 matcher 之间的逻辑关系 ---
+    # 类型是 枚举，可选值：and, or（默认 or）
+    # ============================================================
+    matchers-condition: and
+
+    # ============================================================
+    # --- matchers — 匹配器列表，类型是 []matchers.Matcher ---
+    # 用于匹配协议输出中的内容
+    # ============================================================
+    matchers:
+        # ---------- type: word — 单词匹配 ----------
+      - type: word
+        # condition — 两个 matcher 变量之间的条件，类型是 枚举，可选值：and, or（默认 or）
+        condition: and
+        # part — 要匹配的 response 部分，类型是 string（常见值：body, header, raw, all）
+        part: body
+        # negative — 是否反转匹配结果（仅在条件不成立时匹配），类型是 bool
+        negative: false
+        # name — matcher 的名称，类型是 string（小写，不含空格或下划线）
+        name: outlook-matcher
+        # words — 必须存在的单词匹配模式列表，类型是 []string
+        words:
+          - mail.protection.outlook.com
+          - application/json
+        # encoding — words 字段的编码方式，类型是 枚举，可选值：hex
+        # encoding: hex
+        # case-insensitive — 是否不区分大小写匹配，类型是 bool（默认 false）
+        case-insensitive: false
+        # match-all — 是否启用所有 matcher 值的匹配，类型是 bool（默认 false）
+        match-all: false
+        # internal — 是否从输出中隐藏此 matcher，类型是 bool（默认 false）
+        # 用于多协议/flow 模板中创建内部条件而不在输出中打印
+        internal: false
+
+        # ---------- type: regex — 正则表达式匹配 ----------
+      - type: regex
+        # regex — 必须存在的正则表达式模式列表，类型是 []string
+        regex:
+          - (?mi)^Via\s*?:.*?linkerd.*$
+          - (?m)^(?:Location\s*?:\s*?)(?:https?://|//)?(?:[a-zA-Z0-9\-_\.@]*)example\.com.*$
+
+        # ---------- type: binary — 二进制匹配 ----------
+      - type: binary
+        # binary — 必须存在的二进制模式列表（十六进制字符串），类型是 []string
+        binary:
+          - 4a4156412050524f46494c45
+          - 4850524f46
+
+        # ---------- type: status — HTTP 状态码匹配 ----------
+      - type: status
+        # status — 可接受的状态码列表，类型是 []int
+        status:
+          - 200
+          - 302
+
+        # ---------- type: size — 响应大小匹配 ----------
+      - type: size
+        # size — 可接受的响应大小（字节），类型是 []int
+        size:
+          - 3029
+          - 2042
+
+        # ---------- type: dsl — DSL 表达式匹配 ----------
+      - type: dsl
+        condition: and
+        # dsl — DSL 表达式列表，类型是 []string
+        # 辅助函数参考：https://nuclei.projectdiscovery.io/templating-guide/helper-functions/
+        dsl:
+          - contains(body, 'packages') && contains(tolower(all_headers), 'application/octet-stream') && status_code == 200
+          - '!contains(tolower(all_headers), ''strict-transport-security'')'
+
+        # ---------- type: xpath — XPath 表达式匹配 ----------
+      - type: xpath
+        # xpath — XPath 查询表达式列表，类型是 []string
+        xpath:
+          - /html/head/title[contains(text(), 'How to Find XPath')]
+          - //a[@target="_blank"]
+
+    # ============================================================
+    # --- extractors — 提取器（用于从响应中提取数据）---
+    # ============================================================
+    # extractors:
+    #   - type: regex
+    #     regex:
+    #       - 'secret[_-]?token["'']?\s*[:=]\s*["'']([^"'']+)'
+    #   - type: kval
+    #     kval:
+    #       - token
+
+    # ============================================================
+    # --- fuzzing — 模糊测试规则列表，类型是 []fuzz.Rule ---
+    # ============================================================
+    fuzzing:
+        # type — fuzz 规则类型，类型是 枚举
+        #   replace — 完全替换值
+        #   prefix  — 在值前添加前缀
+        #   postfix — 在值后添加后缀
+        #   infix   — 在值之间插入
+      - type: replace
+        # part — 要 fuzz 的 request 部分，类型是 枚举
+        # 可选值：query, header, path, body, cookie, request
+        part: body
+        # parts — 要 fuzz 的部分列表（如需要多部分同时排除某些部分，用此代替 part）
+        # parts:
+        #   - query
+        #   - body
+        #   - header
+        # mode — fuzz 模式，类型是 枚举
+        #   single   — 每次 fuzz 一个值
+        #   multiple — 同时 fuzz 所有值
+        mode: single
+        # keys — 可选的键名参数列表，类型是 []string
+        keys:
+          - url
+          - file
+        # keys-regex — 可选的正则键参数列表，类型是 []string
+        # keys-regex:
+        #   - url.*
+        # values — 可选的正则值参数列表，类型是 []string
+        values:
+          - https?://.*
+        # fuzz — 要执行替换操作的 payload 列表，类型是 []string 或 map
+        fuzz:
+          - '{{ssrf}}'
+          - '{{interactsh-url}}'
+          - example-value
+        # 或者使用 map 形式：
+        # fuzz:
+        #   x-header: 1
+        #   x-header: 2
+        # replace-regex — regex-replace 规则类型的正则，类型是 string（仅 replace-regex 类型需要）
+        # replace-regex: 'old-(.*)-pattern'
+
+    # ============================================================
+    # --- pre-condition — fuzz 前置条件，类型是 []matchers.Matcher ---
+    # 类似 matcher，用于判断是否应对此 request 执行 fuzzing
+    # ============================================================
+    # pre-condition:
+    #   - type: word
+    #     words:
+    #       - login
+    # pre-condition-operator — 多个前置条件之间的逻辑运算符，类型是 枚举，可选值：and, or（默认 or）
+    pre-condition-operator: or
+
+    # ============================================================
+    # --- analyzer — 响应分析器，类型是 analyzers.AnalyzerTemplate ---
+    # ============================================================
+    # analyzer:
+    #   # name — 分析器名称，类型是 枚举
+    #   # 可选值：time_delay（时间延迟检测）, xss_context（XSS 上下文分析）
+    #   name: time_delay
+    #   # parameters — 分析器参数，类型是 map（每个分析器的参数不同）
+    #   parameters:
+    #     sleep_duration: 5
+    #     time_slope_error_range: 0.5
+
+# ============================================================
+# --- self-contained — 模板的 request 是否自包含，类型是 bool ---
+# ============================================================
+self-contained: false
+
+# ============================================================
+# --- stop-at-first-match — 一旦找到匹配即停止执行，类型是 bool ---
+# ============================================================
+stop-at-first-match: false
+
+# ============================================================
+# --- signature — 模板级别 request 签名方法（已弃用，建议用 code 协议），类型是 枚举 ---
+# 可选值：AWS
+# ============================================================
+# signature: AWS
+
+# ============================================================
+# --- variables — 模板变量，类型是 map，自由 key-value ---
+# 可在整个 template 中通过 {{变量名}} 引用
+# ============================================================
+variables:
+  BaseURL: 'https://example.com'
+  # 可添加任意自定义变量
+
+# ============================================================
+# --- constants — 模板常量，类型是 map，自由 key-value ---
+# 与 variables 类似但值固定不变
+# ============================================================
+constants:
+  MAX_RETRIES: "3"
+  # 可添加任意常量
