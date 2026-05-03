@@ -148,17 +148,15 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     public VulTemplateVO.Response importTemplate(NucleiTemplateVO dto, List<Long> categoryIds) {
         String yamlId = dto.getId();
         NucleiTemplateVO.InfoVO info = dto.getInfo();
-        String name = info.getName();
 
-        // yamlId + name 同租户去重
+        // 同租户 + 同 yamlId + 未删除 → 拒绝重复导入
         VulTemplate dup = baseMapper.selectOne(
                 new LambdaQueryWrapper<VulTemplate>()
                         .eq(VulTemplate::getDeletedAt, 0L)
-                        .and(w -> w.eq(VulTemplate::getYamlId, yamlId).or().eq(VulTemplate::getName, name)));
+                        .eq(VulTemplate::getYamlId, yamlId));
         if (dup != null) {
-            String reason = yamlId.equals(dup.getYamlId()) ? "yamlId" : "name";
             throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
-                    "模板 '" + (reason.equals("yamlId") ? yamlId : name) + "' 已存在（" + reason + " 重复）",
+                    "模板 '" + yamlId + "' 已存在，不允许重复导入",
                     HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
@@ -166,7 +164,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
         VulTemplate template = new VulTemplate();
         template.setYamlId(yamlId);
-        template.setName(name);
+        template.setName(info.getName());
         template.setAuthor(info.getAuthor());
         template.setDescription(info.getDescription());
         template.setImpact(info.getImpact());
@@ -434,7 +432,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             matcher.setInternal(bool(m.get("internal"), false));
             matcher.setMatchAll(bool(m.get("match-all"), false));
             matcher.setMatcherName(str(m.get("name")));
-            matcher.setConfig(toJson(extractConfig(m, MATCHER_CONFIG_KEYS)));
+            matcher.setConfig(orEmpty(toJson(extractConfig(m, MATCHER_CONFIG_KEYS))));
             matcherMapper.insert(matcher);
         }
     }
@@ -451,7 +449,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             extr.setType(str(e.get("type")));
             extr.setPart(str(e.get("part")));
             extr.setExtractorName(str(e.get("name")));
-            extr.setConfig(toJson(extractConfig(e, EXTRACTOR_CONFIG_KEYS)));
+            extr.setConfig(orEmpty(toJson(extractConfig(e, EXTRACTOR_CONFIG_KEYS))));
             extr.setInternal(bool(e.get("internal"), false));
             extr.setGroupNum(integer(e.get("group"), 1));
 
@@ -797,5 +795,9 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         if (obj == null) return null;
         if (obj instanceof String s && s.isBlank()) return null;
         return JSONUtil.toJsonStr(obj);
+    }
+
+    private static String orEmpty(String json) {
+        return json != null ? json : "{}";
     }
 }
