@@ -1,6 +1,6 @@
 -- ============================================================
 -- Hawkeye Cloud — 漏洞管理服务 & 检测服务 建表 DDL
--- 版本：v3.0（11 表归一化）
+-- 版本：v3.0（11 表）
 -- ============================================================
 -- 约定：
 --   主键          table_id 格式（如 template_id, http_id）
@@ -223,6 +223,54 @@ CREATE TABLE IF NOT EXISTS `vul_extractor`
   COLLATE = utf8mb4_general_ci COMMENT ='提取器表';
 
 -- ============================================================
+-- 8. 漏洞分类表（树形结构）
+--    通过 parent_id 自引用实现层级
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `vul_category`
+(
+    `category_id` BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
+    `name`        VARCHAR(128)    NOT NULL COMMENT '分类名称',
+    `parent_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '父分类ID, 0=顶级分类',
+    `sort_order`  INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '同级排序',
+    `description` VARCHAR(500) COMMENT '分类描述',
+    `tenant_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
+    `create_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `create_by`   VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    `update_by`   VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '更新人用户名',
+    `deleted_at`  BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
+    PRIMARY KEY (`category_id`),
+    UNIQUE KEY `uk_tenant_name_parent_deleted` (`tenant_id`, `name`, `parent_id`, `deleted_at`),
+    KEY `idx_parent_deleted` (`parent_id`, `deleted_at`),
+    KEY `idx_tenant_deleted` (`tenant_id`, `deleted_at`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci COMMENT ='漏洞分类表';
+
+
+-- ============================================================
+-- 9. 模板-分类关联表（M2M）
+--    删除时 UPDATE deleted_at, 重新关联时 UPDATE 回 0
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `vul_template_category`
+(
+    `template_id` BIGINT UNSIGNED NOT NULL COMMENT '模板ID',
+    `category_id` BIGINT UNSIGNED NOT NULL COMMENT '分类ID',
+    `tenant_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
+    `create_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `create_by`   VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    `update_by`   VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '更新人用户名',
+    `deleted_at`  BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
+    PRIMARY KEY (`template_id`, `category_id`),
+    KEY `idx_category_id` (`category_id`),
+    KEY `idx_tenant_id` (`tenant_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci COMMENT ='模板-分类关联表';
+
+
+-- ============================================================
 -- 10. 参考链接表
 --     从 YAML info.reference 数组拆分, 每条一个链接
 -- ============================================================
@@ -246,7 +294,7 @@ CREATE TABLE IF NOT EXISTS `vul_reference`
 
 
 -- ============================================================
--- 11. 检测结果表
+-- 11. 检测结果表（vul-service DDL 统一管理，detection-service 写入）
 --     detection-service 写入, vul-service DDL 统一管理
 --     不可变事件日志, 不继承 BaseEntity(无 create_by/update_by/deleted)
 -- ============================================================
