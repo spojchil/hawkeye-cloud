@@ -5,14 +5,11 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 给 detection-service 的检测配置 DTO。
- * 只含执行检测必需的字段，不含描述/作者/CVE等元数据。
- */
 @Data
 public class VulTemplateDetectDTO {
 
-    private String templateId;
+    private Long templateId;
+    private String yamlId;
     private String flow;
     private Map<String, Object> variables;
     private List<HttpStepDetect> httpSteps;
@@ -20,6 +17,7 @@ public class VulTemplateDetectDTO {
     @Data
     public static class HttpStepDetect {
         private Integer stepOrder;
+        private String httpName;
         private String method;
         private List<String> path;
         private Map<String, String> headers;
@@ -27,6 +25,15 @@ public class VulTemplateDetectDTO {
         private String raw;
         private String attack;
         private String matchersCondition;
+        private Map<String, Object> payloads;
+        private Boolean stopAtFirstMatch;
+        private Boolean selfContained;
+        private Boolean redirects;
+        private Integer maxRedirects;
+        private Boolean hostRedirects;
+        private Boolean unsafe;
+        private Boolean cookieReuse;
+        private Boolean reqCondition;
         private List<MatcherDetect> matchers;
         private List<ExtractorDetect> extractors;
     }
@@ -35,9 +42,10 @@ public class VulTemplateDetectDTO {
     public static class MatcherDetect {
         private String type;
         private String part;
-        private String condition;
+        private String innerCondition;
         private Boolean negative;
         private Boolean caseInsensitive;
+        private Boolean matchAll;
         private Map<String, Object> config;
     }
 
@@ -45,7 +53,7 @@ public class VulTemplateDetectDTO {
     public static class ExtractorDetect {
         private String type;
         private String part;
-        private String name;
+        private String extractorName;
         private Map<String, Object> config;
         private Boolean internal;
         private Integer groupNum;

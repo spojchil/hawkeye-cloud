@@ -18,8 +18,8 @@ public class VulTagController {
 
     private final VulTagService vulTagService;
 
-    @Operation(summary = "标签列表")
     @GetMapping
+    @Operation(summary = "标签列表")
     public ApiResponse<List<VulTagVO>> list(@RequestParam(required = false) String keyword) {
         return ApiResponse.success(vulTagService.list(keyword));
     }

@@ -3,7 +3,6 @@ package com.hawkeye.vul.api.controller;
 import com.common.utils.response.ApiResponse;
 import com.hawkeye.vul.business.service.VulCategoryService;
 import com.hawkeye.vul.common.pojo.vo.category.VulCategoryVO;
-import com.hawkeye.vul.common.pojo.vo.category.VulCategoryRequestVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,41 +19,45 @@ public class VulCategoryController {
 
     private final VulCategoryService vulCategoryService;
 
-    @Operation(summary = "查询分类树")
     @GetMapping
-    public ApiResponse<List<VulCategoryVO>> tree(@RequestParam(required = false) Long parentId) {
+    @Operation(summary = "查询分类树")
+    public ApiResponse<List<VulCategoryVO.Response>> tree(
+            @RequestParam(required = false) Long parentId) {
         return ApiResponse.success(vulCategoryService.tree(parentId));
     }
 
-    @Operation(summary = "创建分类")
     @PostMapping
-    public ApiResponse<Long> create(@Valid @RequestBody VulCategoryRequestVO request) {
+    @Operation(summary = "创建分类")
+    public ApiResponse<VulCategoryVO.Response> create(
+            @RequestBody @Valid VulCategoryVO.Request request) {
         return ApiResponse.success(vulCategoryService.create(request));
     }
 
+    @PutMapping("/{categoryId}")
     @Operation(summary = "更新分类")
-    @PutMapping("/{id}")
-    public ApiResponse<Void> update(@PathVariable Long id, @Valid @RequestBody VulCategoryRequestVO request) {
-        vulCategoryService.update(id, request);
-        return ApiResponse.success();
+    public ApiResponse<VulCategoryVO.Response> update(@PathVariable Long categoryId,
+                                                       @RequestBody VulCategoryVO.Request request) {
+        return ApiResponse.success(vulCategoryService.update(categoryId, request));
     }
 
+    @DeleteMapping("/{categoryId}")
     @Operation(summary = "删除分类")
-    @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
-        vulCategoryService.delete(id);
+    public ApiResponse<Void> delete(@PathVariable Long categoryId) {
+        vulCategoryService.delete(categoryId);
         return ApiResponse.success();
     }
 
+    @PostMapping("/{categoryId}/templates")
     @Operation(summary = "给分类批量添加模板")
-    @PostMapping("/{id}/templates")
-    public ApiResponse<Integer> addTemplates(@PathVariable Long id, @RequestBody List<Long> templateIds) {
-        return ApiResponse.success(vulCategoryService.addTemplates(id, templateIds));
+    public ApiResponse<Integer> addTemplates(@PathVariable Long categoryId,
+                                              @RequestBody List<Long> templateIds) {
+        return ApiResponse.success(vulCategoryService.addTemplates(categoryId, templateIds));
     }
 
+    @DeleteMapping("/{categoryId}/templates")
     @Operation(summary = "从分类批量移除模板")
-    @DeleteMapping("/{id}/templates")
-    public ApiResponse<Integer> removeTemplates(@PathVariable Long id, @RequestBody List<Long> templateIds) {
-        return ApiResponse.success(vulCategoryService.removeTemplates(id, templateIds));
+    public ApiResponse<Integer> removeTemplates(@PathVariable Long categoryId,
+                                                 @RequestBody List<Long> templateIds) {
+        return ApiResponse.success(vulCategoryService.removeTemplates(categoryId, templateIds));
     }
 }

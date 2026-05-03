@@ -10,10 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 内部 Feign 接口（不暴露给 Gateway 前端）。
- * detection-service 通过这些接口获取检测配置。
- */
 @Hidden
 @RestController
 @RequestMapping("/vul/internal")
@@ -22,13 +18,14 @@ public class VulInternalController {
 
     private final VulTemplateService vulTemplateService;
 
-    @GetMapping("/{id}")
-    public ApiResponse<VulTemplateDetectDTO> getForDetection(@PathVariable Long id) {
-        return ApiResponse.success(vulTemplateService.getForDetection(id));
+    @GetMapping("/{templateId}")
+    public ApiResponse<VulTemplateDetectDTO> getForDetection(@PathVariable Long templateId) {
+        return ApiResponse.success(vulTemplateService.getForDetection(templateId));
     }
 
     @PostMapping("/batch")
-    public ApiResponse<List<VulTemplateDetectDTO>> batchGetForDetection(@RequestBody Map<String, List<Long>> body) {
+    public ApiResponse<List<VulTemplateDetectDTO>> batchGetForDetection(
+            @RequestBody Map<String, List<Long>> body) {
         List<Long> ids = body.get("ids");
         if (ids == null || ids.isEmpty()) {
             return ApiResponse.success(List.of());
