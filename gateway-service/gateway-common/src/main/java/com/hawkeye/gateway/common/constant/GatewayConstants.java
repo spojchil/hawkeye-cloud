@@ -1,26 +1,21 @@
 package com.hawkeye.gateway.common.constant;
 
-/**
- * 网关常量定义
- */
 public interface GatewayConstants {
-    /**
-     * JWT请求头
-     */
+
     String AUTHORIZATION_HEADER = "Authorization";
     String BEARER_PREFIX = "Bearer ";
 
-    String ACCOUNT_ID_HEADER = "account-id";       // 账号ID
-    String TENANT_ID_HEADER = "tenant-id";   // 租户ID
+    /** 网关注入下游的请求头 — 与 com.common.utils.constant.HeaderConstants 保持一致 */
+    String ACCOUNT_ID_HEADER = "X-ACCOUNT-ID";
+    String TENANT_ID_HEADER = "X-TENANT-ID";
+    String USERNAME_HEADER = "X-USERNAME";
 
     /**
-     * 白名单：路径必须带 /api 前缀，因为 AuthFilter（order=0）在 StripPrefix（order=1）
-     * 之前执行，此时看到的请求路径尚未去除 /api 前缀。
+     * 白名单：路径带 /api 前缀（AuthFilter order=0，在 StripPrefix 之前执行）。
      */
     String[] WHITE_LIST = {
-            "/api/auth/login",       // 登录接口
-            "/api/auth/register",    // 注册接口
-            "/doc.html",         // swagger
+            "/api/auth/login",
+            "/doc.html",
             "/webjars/**",
             "/v3/api-docs/**"
     };
