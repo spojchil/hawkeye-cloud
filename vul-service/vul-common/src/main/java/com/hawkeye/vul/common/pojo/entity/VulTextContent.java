@@ -8,17 +8,11 @@ import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("vul_category")
-public class VulCategory extends BaseVulEntity {
+@TableName("vul_text_content")
+public class VulTextContent extends BaseVulEntity {
 
     @TableId(type = IdType.AUTO)
-    private Long categoryId;
+    private Long textId;
 
-    private String name;
-
-    private Long parentId;
-
-    private Integer sortOrder;
-
-    private String description;
+    private String content;
 }

@@ -3,52 +3,56 @@ package com.hawkeye.vul.common.pojo.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.math.BigDecimal;
-
-/**
- * 漏洞模板主表（v2）。
- * 只存元数据和 1:1 分类信息，检测逻辑拆到了 vul_http_step / vul_matcher / vul_extractor。
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("vul_template")
-public class VulTemplate extends BaseEntity {
+public class VulTemplate extends BaseVulEntity {
 
     @TableId(type = IdType.AUTO)
-    private Long id;
+    private Long templateId;
 
-    /** YAML id 小写，业务唯一键 */
-    private String templateId;
+    /** YAML id (lowercase), NOT NULL per DDL uk_tenant_yaml_deleted */
+    private String yamlId;
 
     private String name;
 
+    private String author;
+
     private String description;
 
-    private String author;
+    private String impact;
 
     /** critical / high / medium / low / info / unknown */
     private String severity;
 
+    /** JSON: custom metadata, free key-value */
+    private String metadata;
+
     private String cveId;
 
-    /** 可复合，如 "CWE-20,CWE-77" */
+    /** Composite CWE, e.g. "CWE-20,CWE-77" */
     private String cweId;
 
-    private BigDecimal cvssScore;
+    /** CVSS vector, e.g. "3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" */
+    private String cvssMetrics;
 
-    private BigDecimal epssScore;
+    private Double cvssScore;
 
-    /** 多步骤执行流，如 http(1) && http(2) */
+    private Double epssScore;
+
+    /** CPE identifier, e.g. "cpe:/a:vendor:product:version" */
+    private String cpe;
+
+    private String remediation;
+
+    /** Multi-step flow expression, e.g. "http(1) && http(2)" */
     private String flow;
 
-    /** 模板级变量，MySQL JSON → String */
+    /** JSON: template-level dynamic variables */
     private String variables;
 
     private Boolean enabled;
-
-    private Integer version;
 }

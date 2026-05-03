@@ -25,7 +25,7 @@
 CREATE TABLE IF NOT EXISTS `vul_template`
 (
     `template_id`  BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
-    `yaml_id`      VARCHAR(64) COMMENT 'YAML id, 仅上传模板有值',
+    `yaml_id`      VARCHAR(64) NOT NULL COMMENT 'YAML id',
     `name`         VARCHAR(128)     NOT NULL COMMENT '模板名称',
     `author`       VARCHAR(128) COMMENT '作者, 逗号分隔多人',
     `description`  VARCHAR(512) COMMENT '漏洞描述',
@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS `vul_template`
     `deleted_at`   BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
     PRIMARY KEY (`template_id`),
     UNIQUE KEY `uk_tenant_name_deleted` (`tenant_id`, `name`, `deleted_at`),
+    UNIQUE KEY `uk_tenant_yaml_deleted` (`tenant_id`, `yaml_id`, `deleted_at`),
     KEY `idx_list_query` (`tenant_id`, `enabled`, `severity`, `create_time`),
     KEY `idx_name` (`name`(32))
 ) ENGINE = InnoDB
@@ -120,7 +121,6 @@ CREATE TABLE IF NOT EXISTS `vul_text_content`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci COMMENT ='大文本内容存储表';
 
-
 -- ============================================================
 -- 5. HTTP 请求步骤表
 --    每个模板 1~N 步, step_order 从 1 开始
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS `vul_http_step`
     `template_id`         BIGINT UNSIGNED  NOT NULL COMMENT '模板ID',
     `step_order`          INT UNSIGNED     NOT NULL DEFAULT 1 COMMENT '步骤顺序, 1-based',
     `http_name`           VARCHAR(128) COMMENT '步骤命名, 用于多步骤条件匹配',
-    `method`              VARCHAR(10) COMMENT 'HTTP 方法: GET/HEAD/POST/PUT/DELETE/CONNECT/OPTIONS/TRACE/PATCH/PURGE',
+    `method`              VARCHAR(10) NOT NULL COMMENT 'HTTP 方法: GET/HEAD/POST/PUT/DELETE/CONNECT/OPTIONS/TRACE/PATCH/PURGE',
     `path`                JSON COMMENT '路径数组, 如 ["{{BaseURL}}/admin"]',
     `headers`             JSON COMMENT '请求头键值对',
     `body_text_id`        BIGINT UNSIGNED COMMENT '请求体文本ID → vul_text_content',

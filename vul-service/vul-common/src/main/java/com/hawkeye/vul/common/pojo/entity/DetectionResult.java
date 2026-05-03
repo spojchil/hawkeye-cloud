@@ -7,16 +7,12 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/**
- * 检测结果（detection-service 写入的不可变事件日志）。
- * 不继承 BaseEntity——没有 create_by / update_by / deleted 字段。
- */
 @Data
 @TableName("detection_result")
 public class DetectionResult {
 
     @TableId(type = IdType.AUTO)
-    private Long id;
+    private Long resultId;
 
     private Long taskId;
 
