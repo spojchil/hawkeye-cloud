@@ -1,34 +1,25 @@
 package com.hawkeye.vul.business.service;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.common.utils.response.ListResult;
 import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
 import com.hawkeye.vul.common.pojo.entity.VulTemplate;
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateDetailVO;
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplatePageQueryVO;
 import com.hawkeye.vul.common.pojo.vo.vul.VulTemplatePageVO;
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateRequestVO;
+import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateVO;
 
-import java.util.List;
+import java.util.Map;
 
 public interface VulTemplateService extends IService<VulTemplate> {
 
-    IPage<VulTemplatePageVO> pageQuery(VulTemplatePageQueryVO query);
+    ListResult<VulTemplatePageVO.Response> pageQuery(VulTemplatePageVO.Request request);
 
-    VulTemplateDetailVO getDetail(Long id);
+    VulTemplateVO.Response getDetail(Long templateId);
 
-    Long create(VulTemplateRequestVO request);
+    void delete(Long templateId);
 
-    void update(Long id, VulTemplateRequestVO request);
+    VulTemplateVO.Response importTemplate(Map<String, Object> templateJson, java.util.List<Long> categoryIds);
 
-    void delete(Long id);
+    VulTemplateDetectDTO getForDetection(Long templateId);
 
-    void batchDelete(List<Long> ids);
-
-    void setEnabled(Long id, Boolean enabled);
-
-    /** 给 detection-service 的 Feign 接口，返回检测执行所需全部配置。 */
-    VulTemplateDetectDTO getForDetection(Long id);
-
-    VulTemplate getByTemplateId(String templateId);
+    VulTemplate getByYamlId(String yamlId);
 }

@@ -193,7 +193,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                 hs.setMatchers(s.getMatchers().stream().map(m -> {
                     TaskItemMessage.Matcher hm = new TaskItemMessage.Matcher();
                     hm.setType(m.getType()); hm.setPart(m.getPart());
-                    hm.setCondition(m.getCondition()); hm.setNegative(m.getNegative());
+                    hm.setCondition(m.getInnerCondition()); hm.setNegative(m.getNegative());
                     hm.setCaseInsensitive(m.getCaseInsensitive()); hm.setConfig(m.getConfig());
                     return hm;
                 }).toList());
@@ -202,7 +202,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                 hs.setExtractors(s.getExtractors().stream().map(e -> {
                     TaskItemMessage.Extractor he = new TaskItemMessage.Extractor();
                     he.setType(e.getType()); he.setPart(e.getPart());
-                    he.setName(e.getName()); he.setConfig(e.getConfig());
+                    he.setName(e.getExtractorName()); he.setConfig(e.getConfig());
                     he.setInternal(e.getInternal()); he.setGroupNum(e.getGroupNum());
                     return he;
                 }).toList());

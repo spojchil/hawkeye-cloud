@@ -4,20 +4,19 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
+import com.common.utils.response.ListResult;
+import com.hawkeye.vul.business.mapstruct.VulTemplateMapstruct;
 import com.hawkeye.vul.business.mapper.*;
 import com.hawkeye.vul.business.service.VulTemplateService;
 import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
 import com.hawkeye.vul.common.pojo.entity.*;
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateDetailVO;
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplatePageQueryVO;
 import com.hawkeye.vul.common.pojo.vo.vul.VulTemplatePageVO;
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateRequestVO;
+import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,93 +31,83 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         implements VulTemplateService {
 
     private static final int PAGE_SIZE_MAX = 100;
+    private static final Set<String> VALID_SEVERITIES =
+            Set.of("critical", "high", "medium", "low", "info", "unknown");
+    private static final Set<String> MATCHER_CONFIG_KEYS =
+            Set.of("words", "regex", "status", "size", "dsl", "xpath", "binary");
+    private static final Set<String> EXTRACTOR_CONFIG_KEYS =
+            Set.of("regex", "kval", "json", "dsl", "xpath");
 
+    private final VulTemplateMapstruct templateMapstruct;
     private final VulTagMapper tagMapper;
     private final VulCategoryMapper categoryMapper;
     private final VulTemplateTagMapper templateTagMapper;
+    private final VulTemplateCategoryMapper templateCategoryMapper;
     private final VulReferenceMapper referenceMapper;
     private final VulHttpStepMapper httpStepMapper;
     private final VulMatcherMapper matcherMapper;
     private final VulExtractorMapper extractorMapper;
-    private final VulTemplateCategoryMapper templateCategoryMapper;
+    private final VulTextContentMapper textContentMapper;
 
-    // ── 分页查询 ──────────────────────────────────────
+    // ── 分页 ──────────────────────────────────────────
 
     @Override
-    @LogExecutionTime
-    public IPage<VulTemplatePageVO> pageQuery(VulTemplatePageQueryVO query) {
-        int pageSize = Math.min(query.getSize() != null ? query.getSize() : 20, PAGE_SIZE_MAX);
-        int pageNum = query.getPage() != null ? query.getPage() : 1;
+    @LogExecutionTime("模板分页查询")
+    public ListResult<VulTemplatePageVO.Response> pageQuery(VulTemplatePageVO.Request request) {
+        int pageSize = Math.min(request.getPageSize() != null ? request.getPageSize() : 20, PAGE_SIZE_MAX);
+        int pageNum = request.getPage() != null ? request.getPage() : 1;
 
         LambdaQueryWrapper<VulTemplate> wrapper = new LambdaQueryWrapper<VulTemplate>()
-                .like(StrUtil.isNotBlank(query.getName()), VulTemplate::getName, query.getName())
-                .eq(StrUtil.isNotBlank(query.getSeverity()), VulTemplate::getSeverity, query.getSeverity())
-                .eq(query.getEnabled() != null, VulTemplate::getEnabled, query.getEnabled());
+                .eq(VulTemplate::getDeletedAt, 0L)
+                .like(StrUtil.isNotBlank(request.getName()), VulTemplate::getName, request.getName())
+                .eq(StrUtil.isNotBlank(request.getSeverity()), VulTemplate::getSeverity, request.getSeverity())
+                .eq(request.getEnabled() != null, VulTemplate::getEnabled, request.getEnabled())
+                .orderByDesc(VulTemplate::getCreateTime);
 
-        // 标签过滤：JOIN vul_template_tag + vul_tag
-        if (StrUtil.isNotBlank(query.getTag())) {
-            Set<Long> tagTemplateIds = getTemplateIdsByTag(query.getTag());
+        if (StrUtil.isNotBlank(request.getTag())) {
+            Set<Long> tagTemplateIds = getTemplateIdsByTag(request.getTag());
             if (tagTemplateIds.isEmpty()) {
-                return new Page<VulTemplatePageVO>(pageNum, pageSize, 0);
+                return ListResult.result(0, Collections.emptyList());
             }
-            wrapper.in(VulTemplate::getId, tagTemplateIds);
+            wrapper.in(VulTemplate::getTemplateId, tagTemplateIds);
         }
 
-        // 分类过滤
-        if (query.getCategoryId() != null) {
-            Set<Long> catTemplateIds = templateCategoryMapper.selectList(
+        if (request.getCategoryId() != null) {
+            List<Long> catTemplateIds = templateCategoryMapper.selectList(
                     new LambdaQueryWrapper<VulTemplateCategory>()
-                            .eq(VulTemplateCategory::getCategoryId, query.getCategoryId())
-            ).stream().map(VulTemplateCategory::getTemplateId).collect(Collectors.toSet());
+                            .eq(VulTemplateCategory::getDeletedAt, 0L)
+                            .eq(VulTemplateCategory::getCategoryId, request.getCategoryId())
+            ).stream().map(VulTemplateCategory::getTemplateId).toList();
             if (catTemplateIds.isEmpty()) {
-                return new Page<VulTemplatePageVO>(pageNum, pageSize, 0);
+                return ListResult.result(0, Collections.emptyList());
             }
-            wrapper.in(VulTemplate::getId, catTemplateIds);
-        }
-
-        // 排序
-        if ("name_asc".equals(query.getSort())) {
-            wrapper.orderByAsc(VulTemplate::getName);
-        } else if ("severity_asc".equals(query.getSort())) {
-            wrapper.orderByAsc(VulTemplate::getSeverity);
-        } else {
-            wrapper.orderByDesc(VulTemplate::getCreateTime);
+            wrapper.in(VulTemplate::getTemplateId, catTemplateIds);
         }
 
         Page<VulTemplate> page = new Page<>(pageNum, pageSize);
-        IPage<VulTemplate> result = baseMapper.selectPage(page, wrapper);
+        Page<VulTemplate> result = baseMapper.selectPage(page, wrapper);
 
-        List<VulTemplatePageVO> voList = result.getRecords().stream()
-                .map(this::toPageVO)
+        List<VulTemplatePageVO.Response> voList = result.getRecords().stream()
+                .map(t -> {
+                    VulTemplatePageVO.Response vo = templateMapstruct.toPageVO(t);
+                    vo.setTags(getTagNames(t.getTemplateId()));
+                    vo.setCategories(getCategoryNames(t.getTemplateId()));
+                    return vo;
+                })
                 .toList();
 
-        Page<VulTemplatePageVO> voPage = new Page<>(pageNum, pageSize, result.getTotal());
-        voPage.setRecords(voList);
-        return voPage;
-    }
-
-    private VulTemplatePageVO toPageVO(VulTemplate template) {
-        VulTemplatePageVO vo = new VulTemplatePageVO();
-        vo.setId(template.getId());
-        vo.setTemplateId(template.getTemplateId());
-        vo.setName(template.getName());
-        vo.setSeverity(template.getSeverity());
-        vo.setCveId(template.getCveId());
-        vo.setCvssScore(template.getCvssScore());
-        vo.setEnabled(template.getEnabled());
-        vo.setVersion(template.getVersion());
-        vo.setCreateTime(template.getCreateTime());
-        vo.setTags(getTagNames(template.getId()));
-        vo.setCategories(getCategoryNames(template.getId()));
-        return vo;
+        return ListResult.result((int) result.getTotal(), voList);
     }
 
     // ── 详情 ──────────────────────────────────────────
 
     @Override
-    @LogExecutionTime
-    public VulTemplateDetailVO getDetail(Long id) {
-        VulTemplate template = baseMapper.selectById(id);
+    @LogExecutionTime("查询模板详情")
+    public VulTemplateVO.Response getDetail(Long templateId) {
+        VulTemplate template = baseMapper.selectOne(
+                new LambdaQueryWrapper<VulTemplate>()
+                        .eq(VulTemplate::getTemplateId, templateId)
+                        .eq(VulTemplate::getDeletedAt, 0L));
         if (template == null) {
             throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(),
                     "漏洞模板不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
@@ -126,183 +115,112 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return assembleDetail(template);
     }
 
-    private VulTemplateDetailVO assembleDetail(VulTemplate template) {
-        Long id = template.getId();
-        VulTemplateDetailVO vo = new VulTemplateDetailVO();
-        vo.setId(id);
-        vo.setTemplateId(template.getTemplateId());
-        vo.setName(template.getName());
-        vo.setDescription(template.getDescription());
-        vo.setAuthor(template.getAuthor());
-        vo.setSeverity(template.getSeverity());
-        vo.setCveId(template.getCveId());
-        vo.setCweId(template.getCweId());
-        vo.setCvssScore(template.getCvssScore());
-        vo.setEpssScore(template.getEpssScore());
-        vo.setFlow(template.getFlow());
-        vo.setVariables(parseJson(template.getVariables()));
-        vo.setEnabled(template.getEnabled());
-        vo.setVersion(template.getVersion());
-        vo.setCreateTime(template.getCreateTime());
-        vo.setUpdateTime(template.getUpdateTime());
-
-        vo.setTags(getTagNames(id));
-        vo.setReferences(getReferenceVOs(id));
-        vo.setCategories(getCategoryBriefVOs(id));
-        vo.setHttpSteps(getHttpStepVOs(id));
-        return vo;
-    }
-
-    // ── 创建 ──────────────────────────────────────────
+    // ── 删除 ──────────────────────────────────────────
 
     @Override
-    @LogExecutionTime
+    @LogExecutionTime("删除模板")
     @Transactional
-    public Long create(VulTemplateRequestVO request) {
-        VulTemplate template = new VulTemplate();
-        template.setTemplateId(request.getTemplateId().toLowerCase());
-        template.setName(request.getName());
-        template.setDescription(request.getDescription());
-        template.setAuthor(request.getAuthor());
-        template.setSeverity(request.getSeverity());
-        template.setCveId(request.getCveId());
-        template.setCweId(request.getCweId());
-        template.setCvssScore(request.getCvssScore());
-        template.setEpssScore(request.getEpssScore());
-        template.setFlow(request.getFlow());
-        template.setVariables(toJson(request.getVariables()));
-        template.setEnabled(true);
-        template.setVersion(1);
-
-        baseMapper.insert(template);
-        Long templateId = template.getId();
-
-        // 级联写入子表
-        saveTags(templateId, request.getTags());
-        saveReferences(templateId, request.getReferences());
-        saveHttpSteps(templateId, request.getHttpSteps());
-        saveCategories(templateId, request.getCategoryIds());
-
-        return templateId;
-    }
-
-    // ── 更新 ──────────────────────────────────────────
-
-    @Override
-    @LogExecutionTime
-    @Transactional
-    public void update(Long id, VulTemplateRequestVO request) {
-        VulTemplate template = baseMapper.selectById(id);
+    public void delete(Long templateId) {
+        VulTemplate template = baseMapper.selectOne(
+                new LambdaQueryWrapper<VulTemplate>()
+                        .eq(VulTemplate::getTemplateId, templateId)
+                        .eq(VulTemplate::getDeletedAt, 0L));
         if (template == null) {
             throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(),
                     "漏洞模板不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
         }
 
-        LambdaUpdateWrapper<VulTemplate> wrapper = new LambdaUpdateWrapper<VulTemplate>()
-                .eq(VulTemplate::getId, id)
-                .set(request.getName() != null, VulTemplate::getName, request.getName())
-                .set(request.getDescription() != null, VulTemplate::getDescription, request.getDescription())
-                .set(request.getAuthor() != null, VulTemplate::getAuthor, request.getAuthor())
-                .set(request.getSeverity() != null, VulTemplate::getSeverity, request.getSeverity())
-                .set(request.getCveId() != null, VulTemplate::getCveId, request.getCveId())
-                .set(request.getCweId() != null, VulTemplate::getCweId, request.getCweId())
-                .set(request.getCvssScore() != null, VulTemplate::getCvssScore, request.getCvssScore())
-                .set(request.getEpssScore() != null, VulTemplate::getEpssScore, request.getEpssScore())
-                .set(request.getFlow() != null, VulTemplate::getFlow, request.getFlow())
-                .set(request.getVariables() != null, VulTemplate::getVariables, toJson(request.getVariables()));
+        long now = System.currentTimeMillis();
+        softDeleteByTemplateId(templateId, now);
 
-        if (allFieldsNull(request)) {
-            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
-                    "至少需要提供一个更新字段", HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
-        }
-
-        baseMapper.update(null, wrapper);
-
-        // 子表：先删后插
-        if (request.getTags() != null) {
-            templateTagMapper.delete(new LambdaQueryWrapper<VulTemplateTag>()
-                    .eq(VulTemplateTag::getTemplateId, id));
-            saveTags(id, request.getTags());
-        }
-        if (request.getReferences() != null) {
-            referenceMapper.delete(new LambdaQueryWrapper<VulReference>()
-                    .eq(VulReference::getTemplateId, id));
-            saveReferences(id, request.getReferences());
-        }
-        if (request.getHttpSteps() != null) {
-            httpStepMapper.delete(new LambdaQueryWrapper<VulHttpStep>()
-                    .eq(VulHttpStep::getTemplateId, id));
-            matcherMapper.delete(new LambdaQueryWrapper<VulMatcher>()
-                    .eq(VulMatcher::getTemplateId, id));
-            extractorMapper.delete(new LambdaQueryWrapper<VulExtractor>()
-                    .eq(VulExtractor::getTemplateId, id));
-            saveHttpSteps(id, request.getHttpSteps());
-        }
-        if (request.getCategoryIds() != null) {
-            templateCategoryMapper.delete(new LambdaQueryWrapper<VulTemplateCategory>()
-                    .eq(VulTemplateCategory::getTemplateId, id));
-            saveCategories(id, request.getCategoryIds());
-        }
-    }
-
-    // ── 删除 ──────────────────────────────────────────
-
-    @Override
-    @LogExecutionTime
-    @Transactional
-    public void delete(Long id) {
-        if (baseMapper.selectById(id) == null) {
-            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(),
-                    "漏洞模板不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
-        }
-
-        long mappingCount = templateCategoryMapper.selectCount(
-                new LambdaQueryWrapper<VulTemplateCategory>()
-                        .eq(VulTemplateCategory::getTemplateId, id));
-        if (mappingCount > 0) {
-            throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
-                    "该模板存在分类关联，请先移除所有关联再删除",
-                    HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
-        }
-
-        // 级联删除子表
-        templateTagMapper.delete(new LambdaQueryWrapper<VulTemplateTag>().eq(VulTemplateTag::getTemplateId, id));
-        referenceMapper.delete(new LambdaQueryWrapper<VulReference>().eq(VulReference::getTemplateId, id));
-        matcherMapper.delete(new LambdaQueryWrapper<VulMatcher>().eq(VulMatcher::getTemplateId, id));
-        extractorMapper.delete(new LambdaQueryWrapper<VulExtractor>().eq(VulExtractor::getTemplateId, id));
-        httpStepMapper.delete(new LambdaQueryWrapper<VulHttpStep>().eq(VulHttpStep::getTemplateId, id));
-        baseMapper.deleteById(id);
-    }
-
-    @Override
-    @LogExecutionTime
-    @Transactional
-    public void batchDelete(List<Long> ids) {
-        for (Long id : ids) {
-            try {
-                delete(id);
-            } catch (ApiException ignored) {
-                // 跳过有分类关联的
-            }
-        }
-    }
-
-    @Override
-    @LogExecutionTime
-    @Transactional
-    public void setEnabled(Long id, Boolean enabled) {
         baseMapper.update(null,
                 new LambdaUpdateWrapper<VulTemplate>()
-                        .eq(VulTemplate::getId, id)
-                        .set(VulTemplate::getEnabled, enabled));
+                        .eq(VulTemplate::getTemplateId, templateId)
+                        .set(VulTemplate::getDeletedAt, now));
+    }
+
+    // ── 导入模板（JSON 解析 → 级联创建） ──────────────
+
+    @Override
+    @LogExecutionTime("导入模板")
+    @Transactional
+    @SuppressWarnings("unchecked")
+    public VulTemplateVO.Response importTemplate(Map<String, Object> templateJson, List<Long> categoryIds) {
+        // 1. 解析顶层信息
+        String yamlId = str(templateJson.get("id")).toLowerCase();
+        if (yamlId.isEmpty()) {
+            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
+                    "模板 id 不能为空", HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
+        }
+
+        // 同名覆盖：先软删除旧模板
+        VulTemplate existing = baseMapper.selectOne(
+                new LambdaQueryWrapper<VulTemplate>()
+                        .eq(VulTemplate::getDeletedAt, 0L)
+                        .eq(VulTemplate::getYamlId, yamlId));
+        if (existing != null) {
+            long now = System.currentTimeMillis();
+            softDeleteByTemplateId(existing.getTemplateId(), now);
+            baseMapper.update(null,
+                    new LambdaUpdateWrapper<VulTemplate>()
+                            .eq(VulTemplate::getTemplateId, existing.getTemplateId())
+                            .set(VulTemplate::getDeletedAt, now));
+        }
+
+        Map<String, Object> info = map(templateJson.get("info"));
+        Map<String, Object> classification = map(info.get("classification"));
+
+        VulTemplate template = new VulTemplate();
+        template.setYamlId(yamlId);
+        template.setName(str(info.get("name"), yamlId));
+        template.setAuthor(str(info.get("author")));
+        template.setDescription(str(info.get("description")));
+        template.setImpact(str(info.get("impact")));
+        template.setSeverity(normalizeSeverity(str(info.get("severity"))));
+        template.setMetadata(toJson(info.get("metadata")));
+        template.setCveId(str(classification.get("cve-id")));
+        template.setCweId(str(classification.get("cwe-id")));
+        template.setCvssMetrics(str(classification.get("cvss-metrics")));
+        template.setCvssScore(dbl(classification.get("cvss-score")));
+        template.setEpssScore(dbl(classification.get("epss-score")));
+        template.setCpe(str(classification.get("cpe")));
+        template.setRemediation(str(info.get("remediation")));
+        template.setFlow(str(templateJson.get("flow")));
+        template.setVariables(toJson(templateJson.get("variables")));
+        template.setEnabled(true);
+
+        baseMapper.insert(template);
+        Long templateId = template.getTemplateId();
+
+        // 2. 标签
+        saveTags(templateId, parseTagList(info.get("tags")));
+
+        // 3. 参考链接
+        saveReferences(templateId, info.get("reference"));
+
+        // 4. 分类关联
+        if (categoryIds != null && !categoryIds.isEmpty()) {
+            saveCategories(templateId, categoryIds);
+        }
+
+        // 5. HTTP 步骤
+        Object httpObj = templateJson.get("http");
+        if (httpObj instanceof List<?> steps) {
+            saveHttpSteps(templateId, steps);
+        }
+
+        return assembleDetail(baseMapper.selectById(templateId));
     }
 
     // ── Feign 检测接口 ─────────────────────────────────
 
     @Override
-    @LogExecutionTime
-    public VulTemplateDetectDTO getForDetection(Long id) {
-        VulTemplate template = baseMapper.selectById(id);
+    @LogExecutionTime("获取检测配置")
+    public VulTemplateDetectDTO getForDetection(Long templateId) {
+        VulTemplate template = baseMapper.selectOne(
+                new LambdaQueryWrapper<VulTemplate>()
+                        .eq(VulTemplate::getTemplateId, templateId)
+                        .eq(VulTemplate::getDeletedAt, 0L));
         if (template == null) {
             throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(),
                     "漏洞模板不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
@@ -310,73 +228,58 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
         VulTemplateDetectDTO dto = new VulTemplateDetectDTO();
         dto.setTemplateId(template.getTemplateId());
+        dto.setYamlId(template.getYamlId());
         dto.setFlow(template.getFlow());
-        dto.setVariables(parseJson(template.getVariables()));
+        dto.setVariables(parseJsonMap(template.getVariables()));
 
         List<VulHttpStep> steps = httpStepMapper.selectList(
                 new LambdaQueryWrapper<VulHttpStep>()
-                        .eq(VulHttpStep::getTemplateId, id)
+                        .eq(VulHttpStep::getDeletedAt, 0L)
+                        .eq(VulHttpStep::getTemplateId, templateId)
                         .orderByAsc(VulHttpStep::getStepOrder));
-
-        List<VulTemplateDetectDTO.HttpStepDetect> stepDTOs = new ArrayList<>();
-        for (VulHttpStep step : steps) {
+        dto.setHttpSteps(steps.stream().map(step -> {
             VulTemplateDetectDTO.HttpStepDetect sd = new VulTemplateDetectDTO.HttpStepDetect();
             sd.setStepOrder(step.getStepOrder());
+            sd.setHttpName(step.getHttpName());
             sd.setMethod(step.getMethod());
             sd.setPath(parseJsonList(step.getPath()));
-            sd.setHeaders(parseJsonMap(step.getHeaders()));
-            sd.setBody(step.getBody());
-            sd.setRaw(step.getRaw());
+            sd.setHeaders(parseJsonMapStr(step.getHeaders()));
             sd.setAttack(step.getAttack());
             sd.setMatchersCondition(step.getMatchersCondition());
-
-            List<VulMatcher> matchers = matcherMapper.selectList(
-                    new LambdaQueryWrapper<VulMatcher>()
-                            .eq(VulMatcher::getTemplateId, id)
-                            .and(w -> w.eq(VulMatcher::getStepOrder, step.getStepOrder())
-                                    .or().isNull(VulMatcher::getStepOrder)));
-            sd.setMatchers(matchers.stream().map(m -> {
-                VulTemplateDetectDTO.MatcherDetect md = new VulTemplateDetectDTO.MatcherDetect();
-                md.setType(m.getType()); md.setPart(m.getPart()); md.setCondition(m.getCondition());
-                md.setNegative(m.getNegative()); md.setCaseInsensitive(m.getCaseInsensitive());
-                md.setConfig(parseJson(m.getConfig()));
-                return md;
-            }).toList());
-
-            List<VulExtractor> extractors = extractorMapper.selectList(
-                    new LambdaQueryWrapper<VulExtractor>()
-                            .eq(VulExtractor::getTemplateId, id)
-                            .and(w -> w.eq(VulExtractor::getStepOrder, step.getStepOrder())
-                                    .or().isNull(VulExtractor::getStepOrder)));
-            sd.setExtractors(extractors.stream().map(e -> {
-                VulTemplateDetectDTO.ExtractorDetect ed = new VulTemplateDetectDTO.ExtractorDetect();
-                ed.setType(e.getType()); ed.setPart(e.getPart()); ed.setName(e.getName());
-                ed.setConfig(parseJson(e.getConfig()));
-                ed.setInternal(e.getInternal()); ed.setGroupNum(e.getGroupNum());
-                return ed;
-            }).toList());
-
-            stepDTOs.add(sd);
-        }
-        dto.setHttpSteps(stepDTOs);
+            sd.setPayloads(parseJsonMap(step.getPayloads()));
+            sd.setStopAtFirstMatch(step.getStopAtFirstMatch());
+            sd.setSelfContained(step.getSelfContained());
+            sd.setRedirects(step.getRedirects());
+            sd.setMaxRedirects(step.getMaxRedirects());
+            sd.setHostRedirects(step.getHostRedirects());
+            sd.setUnsafe(step.getUnsafe());
+            sd.setCookieReuse(step.getCookieReuse());
+            sd.setReqCondition(step.getReqCondition());
+            sd.setMatchers(getMatcherDetects(templateId, step.getStepOrder()));
+            sd.setExtractors(getExtractorDetects(templateId, step.getStepOrder()));
+            return sd;
+        }).toList());
         return dto;
     }
 
     @Override
-    public VulTemplate getByTemplateId(String templateId) {
+    public VulTemplate getByYamlId(String yamlId) {
         return baseMapper.selectOne(
                 new LambdaQueryWrapper<VulTemplate>()
-                        .eq(VulTemplate::getTemplateId, templateId));
+                        .eq(VulTemplate::getDeletedAt, 0L)
+                        .eq(VulTemplate::getYamlId, yamlId));
     }
 
-    // ── 子表操作 ──────────────────────────────────────
+    // ── 导入：标签 ────────────────────────────────────
 
     private void saveTags(Long templateId, List<String> tagNames) {
         if (tagNames == null || tagNames.isEmpty()) return;
         for (String name : tagNames) {
             String lower = name.toLowerCase();
             VulTag tag = tagMapper.selectOne(
-                    new LambdaQueryWrapper<VulTag>().eq(VulTag::getName, lower));
+                    new LambdaQueryWrapper<VulTag>()
+                            .eq(VulTag::getDeletedAt, 0L)
+                            .eq(VulTag::getName, lower));
             if (tag == null) {
                 tag = new VulTag();
                 tag.setName(lower);
@@ -384,76 +287,59 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             }
             VulTemplateTag tt = new VulTemplateTag();
             tt.setTemplateId(templateId);
-            tt.setTagId(tag.getId());
+            tt.setTagId(tag.getTagId());
             templateTagMapper.insert(tt);
         }
     }
 
-    private void saveReferences(Long templateId, List<VulTemplateRequestVO.ReferenceRequest> refs) {
-        if (refs == null || refs.isEmpty()) return;
-        for (VulTemplateRequestVO.ReferenceRequest r : refs) {
+    private List<String> parseTagList(Object tagsRaw) {
+        if (tagsRaw == null) return Collections.emptyList();
+        if (tagsRaw instanceof String s) {
+            return Arrays.stream(s.split(","))
+                    .map(String::trim)
+                    .filter(s2 -> !s2.isEmpty())
+                    .toList();
+        }
+        if (tagsRaw instanceof List<?> list) {
+            return list.stream()
+                    .map(Object::toString)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+        }
+        return Collections.emptyList();
+    }
+
+    // ── 导入：参考链接 ────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void saveReferences(Long templateId, Object refRaw) {
+        if (refRaw == null) return;
+        if (refRaw instanceof List<?> list) {
+            for (Object item : list) {
+                VulReference ref = new VulReference();
+                ref.setTemplateId(templateId);
+                if (item instanceof String s) {
+                    ref.setUrl(s.trim());
+                } else if (item instanceof Map<?, ?> m) {
+                    ref.setUrl(str(((Map<String, Object>) m).get("url"), str(m.get("link"))));
+                    ref.setTitle(str(((Map<String, Object>) m).get("title")));
+                }
+                if (ref.getUrl() != null && !ref.getUrl().isEmpty()) {
+                    referenceMapper.insert(ref);
+                }
+            }
+        } else if (refRaw instanceof String s && !s.isBlank()) {
             VulReference ref = new VulReference();
             ref.setTemplateId(templateId);
-            ref.setUrl(r.getUrl());
-            ref.setTitle(r.getTitle());
+            ref.setUrl(s.trim());
             referenceMapper.insert(ref);
         }
     }
 
-    private void saveHttpSteps(Long templateId, List<VulTemplateRequestVO.HttpStepRequest> steps) {
-        if (steps == null || steps.isEmpty()) return;
-        int order = 1;
-        for (VulTemplateRequestVO.HttpStepRequest s : steps) {
-            VulHttpStep step = new VulHttpStep();
-            step.setTemplateId(templateId);
-            step.setStepOrder(order);
-            step.setMethod(s.getMethod());
-            step.setPath(toJson(s.getPath()));
-            step.setHeaders(toJson(s.getHeaders()));
-            step.setBody(s.getBody());
-            step.setRaw(s.getRaw());
-            step.setAttack(s.getAttack());
-            step.setMatchersCondition(s.getMatchersCondition() != null ? s.getMatchersCondition() : "or");
-            step.setStopAtFirstMatch(s.getStopAtFirstMatch() != null ? s.getStopAtFirstMatch() : false);
-            httpStepMapper.insert(step);
-
-            // 步骤级 matchers / extractors
-            if (s.getMatchers() != null) {
-                for (VulTemplateRequestVO.MatcherRequest m : s.getMatchers()) {
-                    VulMatcher matcher = new VulMatcher();
-                    matcher.setTemplateId(templateId);
-                    matcher.setStepOrder(order);
-                    matcher.setType(m.getType());
-                    matcher.setPart(m.getPart());
-                    matcher.setCondition(m.getCondition() != null ? m.getCondition() : "or");
-                    matcher.setNegative(m.getNegative() != null ? m.getNegative() : false);
-                    matcher.setCaseInsensitive(m.getCaseInsensitive() != null ? m.getCaseInsensitive() : false);
-                    matcher.setInternal(m.getInternal() != null ? m.getInternal() : false);
-                    matcher.setName(m.getName());
-                    matcher.setConfig(toJson(m.getConfig()));
-                    matcherMapper.insert(matcher);
-                }
-            }
-            if (s.getExtractors() != null) {
-                for (VulTemplateRequestVO.ExtractorRequest e : s.getExtractors()) {
-                    VulExtractor extr = new VulExtractor();
-                    extr.setTemplateId(templateId);
-                    extr.setStepOrder(order);
-                    extr.setType(e.getType());
-                    extr.setPart(e.getPart());
-                    extr.setName(e.getName());
-                    extr.setConfig(toJson(e.getConfig()));
-                    extr.setInternal(e.getInternal() != null ? e.getInternal() : false);
-                    extr.setGroupNum(e.getGroupNum() != null ? e.getGroupNum() : 1);
-                    extractorMapper.insert(extr);
-                }
-            }
-            order++;
-        }
-    }
+    // ── 导入：分类 ────────────────────────────────────
 
     private void saveCategories(Long templateId, List<Long> categoryIds) {
-        if (categoryIds == null || categoryIds.isEmpty()) return;
         for (Long catId : categoryIds) {
             VulTemplateCategory tc = new VulTemplateCategory();
             tc.setTemplateId(templateId);
@@ -462,123 +348,356 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         }
     }
 
-    // ── 详情组装帮助方法 ──────────────────────────────
+    // ── 导入：HTTP 步骤 ───────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void saveHttpSteps(Long templateId, List<?> steps) {
+        int order = 1;
+        for (Object item : steps) {
+            if (!(item instanceof Map<?, ?>)) continue;
+            Map<String, Object> s = (Map<String, Object>) item;
+
+            VulHttpStep step = new VulHttpStep();
+            step.setTemplateId(templateId);
+            step.setStepOrder(order);
+            step.setHttpName(str(s.get("name")));
+            step.setMethod(str(s.get("method")));
+            step.setPath(toJson(pathToList(s.get("path"))));
+            step.setHeaders(toJson(s.get("headers")));
+            step.setMatchersCondition(str(s.get("matchers-condition"), "or"));
+            step.setAttack(str(s.get("attack")));
+            step.setPayloads(toJson(s.get("payloads")));
+            step.setStopAtFirstMatch(bool(s.get("stop-at-first-match"), false));
+            step.setSelfContained(bool(s.get("self-contained"), false));
+            step.setRedirects(bool(s.get("redirects"), false));
+            step.setMaxRedirects(integer(s.get("max-redirects")));
+            step.setHostRedirects(bool(s.get("host-redirects"), false));
+            step.setUnsafe(bool(s.get("unsafe"), false));
+            step.setCookieReuse(bool(s.get("cookie-reuse"), false));
+            step.setReqCondition(bool(s.get("req-condition"), false));
+
+            // body → vul_text_content
+            String body = str(s.get("body"));
+            if (!body.isEmpty()) {
+                VulTextContent tc = new VulTextContent();
+                tc.setContent(body);
+                textContentMapper.insert(tc);
+                step.setBodyTextId(tc.getTextId());
+            }
+
+            // raw → vul_text_content
+            Object rawObj = s.get("raw");
+            String rawText = rawToList(rawObj);
+            if (!rawText.isEmpty()) {
+                VulTextContent tc = new VulTextContent();
+                tc.setContent(rawText);
+                textContentMapper.insert(tc);
+                step.setRawTextId(tc.getTextId());
+            }
+
+            httpStepMapper.insert(step);
+
+            // matchers
+            Object matchersObj = s.get("matchers");
+            if (matchersObj instanceof List<?> matchers) {
+                saveMatchers(templateId, order, matchers);
+            }
+
+            // extractors
+            Object extractorsObj = s.get("extractors");
+            if (extractorsObj instanceof List<?> extractors) {
+                saveExtractors(templateId, order, extractors);
+            }
+
+            order++;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void saveMatchers(Long templateId, int stepOrder, List<?> matchers) {
+        for (Object obj : matchers) {
+            if (!(obj instanceof Map<?, ?>)) continue;
+            Map<String, Object> m = (Map<String, Object>) obj;
+
+            VulMatcher matcher = new VulMatcher();
+            matcher.setTemplateId(templateId);
+            matcher.setStepOrder(stepOrder);
+            matcher.setType(str(m.get("type")));
+            matcher.setPart(str(m.get("part")));
+            matcher.setInnerCondition(str(m.get("condition"), "or"));
+            matcher.setNegative(bool(m.get("negative"), false));
+            matcher.setCaseInsensitive(bool(m.get("case-insensitive"), false));
+            matcher.setInternal(bool(m.get("internal"), false));
+            matcher.setMatchAll(bool(m.get("match-all"), false));
+            matcher.setMatcherName(str(m.get("name")));
+            matcher.setConfig(toJson(extractConfig(m, MATCHER_CONFIG_KEYS)));
+            matcherMapper.insert(matcher);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void saveExtractors(Long templateId, int stepOrder, List<?> extractors) {
+        for (Object obj : extractors) {
+            if (!(obj instanceof Map<?, ?>)) continue;
+            Map<String, Object> e = (Map<String, Object>) obj;
+
+            VulExtractor extr = new VulExtractor();
+            extr.setTemplateId(templateId);
+            extr.setStepOrder(stepOrder);
+            extr.setType(str(e.get("type")));
+            extr.setPart(str(e.get("part")));
+            extr.setExtractorName(str(e.get("name")));
+            extr.setConfig(toJson(extractConfig(e, EXTRACTOR_CONFIG_KEYS)));
+            extr.setInternal(bool(e.get("internal"), false));
+            extr.setGroupNum(integer(e.get("group"), 1));
+
+            // nuclei extractor: "group" → "groupNum"
+            if (e.containsKey("group") && !e.containsKey("groupNum")) {
+                extr.setGroupNum(integer(e.get("group"), 1));
+            }
+
+            extractorMapper.insert(extr);
+        }
+    }
+
+    // ── 软删除级联 ────────────────────────────────────
+
+    private void softDeleteByTemplateId(Long templateId, long nowMs) {
+        templateTagMapper.update(null,
+                new LambdaUpdateWrapper<VulTemplateTag>()
+                        .eq(VulTemplateTag::getTemplateId, templateId)
+                        .eq(VulTemplateTag::getDeletedAt, 0L)
+                        .set(VulTemplateTag::getDeletedAt, nowMs));
+        referenceMapper.update(null,
+                new LambdaUpdateWrapper<VulReference>()
+                        .eq(VulReference::getTemplateId, templateId)
+                        .eq(VulReference::getDeletedAt, 0L)
+                        .set(VulReference::getDeletedAt, nowMs));
+        matcherMapper.update(null,
+                new LambdaUpdateWrapper<VulMatcher>()
+                        .eq(VulMatcher::getTemplateId, templateId)
+                        .eq(VulMatcher::getDeletedAt, 0L)
+                        .set(VulMatcher::getDeletedAt, nowMs));
+        extractorMapper.update(null,
+                new LambdaUpdateWrapper<VulExtractor>()
+                        .eq(VulExtractor::getTemplateId, templateId)
+                        .eq(VulExtractor::getDeletedAt, 0L)
+                        .set(VulExtractor::getDeletedAt, nowMs));
+        httpStepMapper.update(null,
+                new LambdaUpdateWrapper<VulHttpStep>()
+                        .eq(VulHttpStep::getTemplateId, templateId)
+                        .eq(VulHttpStep::getDeletedAt, 0L)
+                        .set(VulHttpStep::getDeletedAt, nowMs));
+        templateCategoryMapper.update(null,
+                new LambdaUpdateWrapper<VulTemplateCategory>()
+                        .eq(VulTemplateCategory::getTemplateId, templateId)
+                        .eq(VulTemplateCategory::getDeletedAt, 0L)
+                        .set(VulTemplateCategory::getDeletedAt, nowMs));
+    }
+
+    // ── 详情组装 ─────────────────────────────────────
+
+    private VulTemplateVO.Response assembleDetail(VulTemplate template) {
+        Long templateId = template.getTemplateId();
+        VulTemplateVO.Response vo = templateMapstruct.toResponseVO(template);
+        vo.setVariables(parseJsonMap(template.getVariables()));
+        vo.setMetadata(parseJsonMap(template.getMetadata()));
+        vo.setTags(getTagNames(templateId));
+        vo.setReferences(getReferenceVOs(templateId));
+        vo.setCategories(getCategoryBriefVOs(templateId));
+        vo.setHttpSteps(getHttpStepVOs(templateId));
+        return vo;
+    }
 
     private List<String> getTagNames(Long templateId) {
         List<Long> tagIds = templateTagMapper.selectList(
                 new LambdaQueryWrapper<VulTemplateTag>()
+                        .eq(VulTemplateTag::getDeletedAt, 0L)
                         .eq(VulTemplateTag::getTemplateId, templateId)
         ).stream().map(VulTemplateTag::getTagId).toList();
         if (tagIds.isEmpty()) return Collections.emptyList();
-        return tagMapper.selectBatchIds(tagIds).stream()
-                .map(VulTag::getName).toList();
+        return tagMapper.selectList(
+                new LambdaQueryWrapper<VulTag>()
+                        .eq(VulTag::getDeletedAt, 0L)
+                        .in(VulTag::getTagId, tagIds)
+        ).stream().map(VulTag::getName).toList();
     }
 
-    private List<VulTemplateDetailVO.ReferenceVO> getReferenceVOs(Long templateId) {
+    private List<String> getCategoryNames(Long templateId) {
+        return getCategoryBriefVOs(templateId).stream()
+                .map(VulTemplateVO.Response.CategoryBriefVO::getName).toList();
+    }
+
+    private List<VulTemplateVO.Response.CategoryBriefVO> getCategoryBriefVOs(Long templateId) {
+        List<Long> catIds = templateCategoryMapper.selectList(
+                new LambdaQueryWrapper<VulTemplateCategory>()
+                        .eq(VulTemplateCategory::getDeletedAt, 0L)
+                        .eq(VulTemplateCategory::getTemplateId, templateId)
+        ).stream().map(VulTemplateCategory::getCategoryId).toList();
+        if (catIds.isEmpty()) return Collections.emptyList();
+        return categoryMapper.selectList(
+                new LambdaQueryWrapper<VulCategory>()
+                        .eq(VulCategory::getDeletedAt, 0L)
+                        .in(VulCategory::getCategoryId, catIds)
+        ).stream().map(c -> {
+            VulTemplateVO.Response.CategoryBriefVO cv = new VulTemplateVO.Response.CategoryBriefVO();
+            cv.setCategoryId(c.getCategoryId());
+            cv.setName(c.getName());
+            return cv;
+        }).toList();
+    }
+
+    private List<VulTemplateVO.Response.ReferenceVO> getReferenceVOs(Long templateId) {
         return referenceMapper.selectList(
                 new LambdaQueryWrapper<VulReference>()
+                        .eq(VulReference::getDeletedAt, 0L)
                         .eq(VulReference::getTemplateId, templateId)
         ).stream().map(r -> {
-            VulTemplateDetailVO.ReferenceVO rv = new VulTemplateDetailVO.ReferenceVO();
+            VulTemplateVO.Response.ReferenceVO rv = new VulTemplateVO.Response.ReferenceVO();
             rv.setUrl(r.getUrl());
             rv.setTitle(r.getTitle());
             return rv;
         }).toList();
     }
 
-    private List<VulTemplateDetailVO.CategoryBriefVO> getCategoryBriefVOs(Long templateId) {
-        List<Long> catIds = templateCategoryMapper.selectList(
-                new LambdaQueryWrapper<VulTemplateCategory>()
-                        .eq(VulTemplateCategory::getTemplateId, templateId)
-        ).stream().map(VulTemplateCategory::getCategoryId).toList();
-        if (catIds.isEmpty()) return Collections.emptyList();
-        return categoryMapper.selectBatchIds(catIds).stream()
-                .map(c -> {
-                    VulTemplateDetailVO.CategoryBriefVO cv = new VulTemplateDetailVO.CategoryBriefVO();
-                    cv.setCategoryId(c.getCategoryId());
-                    cv.setName(c.getName());
-                    return cv;
-                }).toList();
-    }
-
-    private List<String> getCategoryNames(Long templateId) {
-        return getCategoryBriefVOs(templateId).stream()
-                .map(c -> c.getName()).toList();
-    }
-
-    private List<VulTemplateDetailVO.HttpStepVO> getHttpStepVOs(Long templateId) {
-        List<VulHttpStep> steps = httpStepMapper.selectList(
+    private List<VulTemplateVO.Response.HttpStepVO> getHttpStepVOs(Long templateId) {
+        return httpStepMapper.selectList(
                 new LambdaQueryWrapper<VulHttpStep>()
+                        .eq(VulHttpStep::getDeletedAt, 0L)
                         .eq(VulHttpStep::getTemplateId, templateId)
-                        .orderByAsc(VulHttpStep::getStepOrder));
-        return steps.stream().map(step -> {
-            VulTemplateDetailVO.HttpStepVO sv = new VulTemplateDetailVO.HttpStepVO();
+                        .orderByAsc(VulHttpStep::getStepOrder)
+        ).stream().map(step -> {
+            VulTemplateVO.Response.HttpStepVO sv = new VulTemplateVO.Response.HttpStepVO();
+            sv.setHttpId(step.getHttpId());
             sv.setStepOrder(step.getStepOrder());
+            sv.setHttpName(step.getHttpName());
             sv.setMethod(step.getMethod());
             sv.setPath(parseJsonList(step.getPath()));
-            sv.setHeaders(parseJsonMap(step.getHeaders()));
-            sv.setBody(step.getBody());
-            sv.setRaw(step.getRaw());
+            sv.setHeaders(parseJsonMapStr(step.getHeaders()));
             sv.setAttack(step.getAttack());
             sv.setMatchersCondition(step.getMatchersCondition());
+            sv.setPayloads(parseJsonMap(step.getPayloads()));
             sv.setStopAtFirstMatch(step.getStopAtFirstMatch());
+            sv.setSelfContained(step.getSelfContained());
+            sv.setRedirects(step.getRedirects());
+            sv.setMaxRedirects(step.getMaxRedirects());
+            sv.setHostRedirects(step.getHostRedirects());
+            sv.setUnsafe(step.getUnsafe());
+            sv.setCookieReuse(step.getCookieReuse());
+            sv.setReqCondition(step.getReqCondition());
             sv.setMatchers(getMatcherVOs(templateId, step.getStepOrder()));
             sv.setExtractors(getExtractorVOs(templateId, step.getStepOrder()));
             return sv;
         }).toList();
     }
 
-    private List<VulTemplateDetailVO.MatcherVO> getMatcherVOs(Long templateId, Integer stepOrder) {
+    private List<VulTemplateVO.Response.MatcherVO> getMatcherVOs(Long templateId, Integer stepOrder) {
         return matcherMapper.selectList(
                 new LambdaQueryWrapper<VulMatcher>()
+                        .eq(VulMatcher::getDeletedAt, 0L)
                         .eq(VulMatcher::getTemplateId, templateId)
                         .and(w -> w.eq(VulMatcher::getStepOrder, stepOrder)
                                 .or().isNull(VulMatcher::getStepOrder))
         ).stream().map(m -> {
-            VulTemplateDetailVO.MatcherVO mv = new VulTemplateDetailVO.MatcherVO();
-            mv.setType(m.getType()); mv.setPart(m.getPart()); mv.setCondition(m.getCondition());
-            mv.setNegative(m.getNegative()); mv.setCaseInsensitive(m.getCaseInsensitive());
-            mv.setInternal(m.getInternal()); mv.setName(m.getName());
-            mv.setConfig(parseJson(m.getConfig()));
+            VulTemplateVO.Response.MatcherVO mv = new VulTemplateVO.Response.MatcherVO();
+            mv.setMatcherId(m.getMatcherId());
+            mv.setType(m.getType());
+            mv.setPart(m.getPart());
+            mv.setInnerCondition(m.getInnerCondition());
+            mv.setNegative(m.getNegative());
+            mv.setCaseInsensitive(m.getCaseInsensitive());
+            mv.setInternal(m.getInternal());
+            mv.setMatchAll(m.getMatchAll());
+            mv.setMatcherName(m.getMatcherName());
+            mv.setConfig(parseJsonMap(m.getConfig()));
             return mv;
         }).toList();
     }
 
-    private List<VulTemplateDetailVO.ExtractorVO> getExtractorVOs(Long templateId, Integer stepOrder) {
+    private List<VulTemplateVO.Response.ExtractorVO> getExtractorVOs(Long templateId, Integer stepOrder) {
         return extractorMapper.selectList(
                 new LambdaQueryWrapper<VulExtractor>()
+                        .eq(VulExtractor::getDeletedAt, 0L)
                         .eq(VulExtractor::getTemplateId, templateId)
                         .and(w -> w.eq(VulExtractor::getStepOrder, stepOrder)
                                 .or().isNull(VulExtractor::getStepOrder))
         ).stream().map(e -> {
-            VulTemplateDetailVO.ExtractorVO ev = new VulTemplateDetailVO.ExtractorVO();
-            ev.setType(e.getType()); ev.setPart(e.getPart()); ev.setName(e.getName());
-            ev.setConfig(parseJson(e.getConfig()));
-            ev.setInternal(e.getInternal()); ev.setGroupNum(e.getGroupNum());
+            VulTemplateVO.Response.ExtractorVO ev = new VulTemplateVO.Response.ExtractorVO();
+            ev.setExtractorId(e.getExtractorId());
+            ev.setType(e.getType());
+            ev.setPart(e.getPart());
+            ev.setExtractorName(e.getExtractorName());
+            ev.setConfig(parseJsonMap(e.getConfig()));
+            ev.setInternal(e.getInternal());
+            ev.setGroupNum(e.getGroupNum());
             return ev;
         }).toList();
     }
 
+    private List<VulTemplateDetectDTO.MatcherDetect> getMatcherDetects(Long templateId, Integer stepOrder) {
+        return matcherMapper.selectList(
+                new LambdaQueryWrapper<VulMatcher>()
+                        .eq(VulMatcher::getDeletedAt, 0L)
+                        .eq(VulMatcher::getTemplateId, templateId)
+                        .and(w -> w.eq(VulMatcher::getStepOrder, stepOrder)
+                                .or().isNull(VulMatcher::getStepOrder))
+        ).stream().map(m -> {
+            VulTemplateDetectDTO.MatcherDetect md = new VulTemplateDetectDTO.MatcherDetect();
+            md.setType(m.getType());
+            md.setPart(m.getPart());
+            md.setInnerCondition(m.getInnerCondition());
+            md.setNegative(m.getNegative());
+            md.setCaseInsensitive(m.getCaseInsensitive());
+            md.setMatchAll(m.getMatchAll());
+            md.setConfig(parseJsonMap(m.getConfig()));
+            return md;
+        }).toList();
+    }
+
+    private List<VulTemplateDetectDTO.ExtractorDetect> getExtractorDetects(Long templateId, Integer stepOrder) {
+        return extractorMapper.selectList(
+                new LambdaQueryWrapper<VulExtractor>()
+                        .eq(VulExtractor::getDeletedAt, 0L)
+                        .eq(VulExtractor::getTemplateId, templateId)
+                        .and(w -> w.eq(VulExtractor::getStepOrder, stepOrder)
+                                .or().isNull(VulExtractor::getStepOrder))
+        ).stream().map(e -> {
+            VulTemplateDetectDTO.ExtractorDetect ed = new VulTemplateDetectDTO.ExtractorDetect();
+            ed.setType(e.getType());
+            ed.setPart(e.getPart());
+            ed.setExtractorName(e.getExtractorName());
+            ed.setConfig(parseJsonMap(e.getConfig()));
+            ed.setInternal(e.getInternal());
+            ed.setGroupNum(e.getGroupNum());
+            return ed;
+        }).toList();
+    }
+
+    // ── 标签过滤 ─────────────────────────────────────
+
     private Set<Long> getTemplateIdsByTag(String tagName) {
         List<VulTag> tags = tagMapper.selectList(
-                new LambdaQueryWrapper<VulTag>().eq(VulTag::getName, tagName.toLowerCase()));
+                new LambdaQueryWrapper<VulTag>()
+                        .eq(VulTag::getDeletedAt, 0L)
+                        .eq(VulTag::getName, tagName.toLowerCase()));
         if (tags.isEmpty()) return Collections.emptySet();
         return templateTagMapper.selectList(
                 new LambdaQueryWrapper<VulTemplateTag>()
-                        .eq(VulTemplateTag::getTagId, tags.get(0).getId())
+                        .eq(VulTemplateTag::getDeletedAt, 0L)
+                        .eq(VulTemplateTag::getTagId, tags.get(0).getTagId())
         ).stream().map(VulTemplateTag::getTemplateId).collect(Collectors.toSet());
     }
 
-    // ── JSON 工具 ────────────────────────────────────
+    // ── JSON 解析工具 ────────────────────────────────
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> parseJson(String json) {
+    private Map<String, Object> parseJsonMap(String json) {
         if (StrUtil.isBlank(json)) return null;
         try { return JSONUtil.toBean(json, Map.class); } catch (Exception e) { return null; }
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, String> parseJsonMap(String json) {
+    private Map<String, String> parseJsonMapStr(String json) {
         if (StrUtil.isBlank(json)) return null;
         try { return JSONUtil.toBean(json, Map.class); } catch (Exception e) { return null; }
     }
@@ -589,18 +708,90 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         try { return JSONUtil.toList(json, String.class); } catch (Exception e) { return null; }
     }
 
-    private String toJson(Object obj) {
-        if (obj == null) return null;
-        return JSONUtil.toJsonStr(obj);
+    // ── 导入解析工具 ──────────────────────────────────
+
+    private String normalizeSeverity(String raw) {
+        if (raw == null || raw.isEmpty()) return "unknown";
+        String s = raw.trim().toLowerCase();
+        if ("informational".equals(s) || "none".equals(s)) return "info";
+        return VALID_SEVERITIES.contains(s) ? s : "unknown";
     }
 
-    private boolean allFieldsNull(VulTemplateRequestVO req) {
-        return req.getName() == null && req.getDescription() == null
-                && req.getAuthor() == null && req.getSeverity() == null
-                && req.getCveId() == null && req.getCweId() == null
-                && req.getCvssScore() == null && req.getEpssScore() == null
-                && req.getFlow() == null && req.getVariables() == null
-                && req.getTags() == null && req.getReferences() == null
-                && req.getHttpSteps() == null && req.getCategoryIds() == null;
+    /**
+     * 从匹配器/提取器的 map 中提取 type-specific 配置字段。
+     * 如 matcher {type:"word", words:[...]} → config {"words":[...]}
+     */
+    private Map<String, Object> extractConfig(Map<String, Object> source, Set<String> keys) {
+        Map<String, Object> config = new LinkedHashMap<>();
+        for (String key : keys) {
+            Object val = source.get(key);
+            if (val != null) {
+                config.put(key, val);
+            }
+        }
+        return config.isEmpty() ? null : config;
+    }
+
+    /** raw 字段可能是 List<String>（多行）或单个 String */
+    private String rawToList(Object raw) {
+        if (raw == null) return "";
+        if (raw instanceof List<?> list) {
+            return list.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.joining("\n"))
+                    .trim();
+        }
+        return raw.toString().trim();
+    }
+
+    /** path 字段可能是 String（单路径）或 List<String>（多路径） */
+    private List<String> pathToList(Object path) {
+        if (path == null) return null;
+        if (path instanceof List<?> list) {
+            return list.stream().map(Object::toString).toList();
+        }
+        return List.of(path.toString());
+    }
+
+    // ── 安全类型转换 ──────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> map(Object obj) {
+        if (obj instanceof Map<?, ?>) return (Map<String, Object>) obj;
+        return Collections.emptyMap();
+    }
+
+    private String str(Object obj) { return str(obj, ""); }
+
+    private String str(Object obj, String defaultVal) {
+        if (obj == null) return defaultVal;
+        String s = obj.toString().trim();
+        return s.isEmpty() ? defaultVal : s;
+    }
+
+    private Double dbl(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof Number n) return n.doubleValue();
+        try { return Double.parseDouble(obj.toString()); } catch (NumberFormatException e) { return null; }
+    }
+
+    private Boolean bool(Object obj, boolean defaultVal) {
+        if (obj == null) return defaultVal;
+        if (obj instanceof Boolean b) return b;
+        return defaultVal;
+    }
+
+    private Integer integer(Object obj) { return integer(obj, null); }
+
+    private Integer integer(Object obj, Integer defaultVal) {
+        if (obj == null) return defaultVal;
+        if (obj instanceof Number n) return n.intValue();
+        try { return Integer.parseInt(obj.toString()); } catch (NumberFormatException e) { return defaultVal; }
+    }
+
+    private String toJson(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof String s && s.isBlank()) return null;
+        return JSONUtil.toJsonStr(obj);
     }
 }
