@@ -1,31 +1,29 @@
 package com.hawkeye.detection.business.engine.matcher;
 
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
-import com.hawkeye.detection.business.engine.model.MatcherConfig;
+import com.hawkeye.detection.business.engine.model.MatcherDef;
+import org.springframework.stereotype.Component;
 
-/**
- * Word 匹配器——检查响应中是否包含指定关键词。
- */
-public class WordMatcher implements MatcherStrategy {
+@Component
+public class WordMatcher extends AbstractMatcher {
 
-    @Override
-    public String getType() {
-        return "word";
-    }
+    @Override public String type() { return "word"; }
 
     @Override
-    public boolean matchRule(HttpResponseContext ctx, MatcherConfig cfg, Object rule) {
-        String word = rule.toString();
-        String target = getPart(ctx, cfg.getPart());
+    public boolean match(HttpResponseContext ctx, MatcherDef def) {
+        String target = part(ctx, def.getPart());
         if (target == null) return false;
 
-        if (cfg.isCaseInsensitive()) {
-            return target.toLowerCase().contains(word.toLowerCase());
-        }
-        return target.contains(word);
+        return evaluateInner(def.getWords(), def.getCondition(), rule -> {
+            String word = rule.toString();
+            if (def.isCaseInsensitive()) {
+                return target.toLowerCase().contains(word.toLowerCase());
+            }
+            return target.contains(word);
+        });
     }
 
-    private String getPart(HttpResponseContext ctx, String part) {
+    static String part(HttpResponseContext ctx, String part) {
         if (part == null || "body".equals(part)) return ctx.getBody();
         if ("header".equals(part)) return ctx.getHeaders() != null ? ctx.getHeaders().toString() : "";
         if ("all".equals(part)) return (ctx.getBody() != null ? ctx.getBody() : "")

@@ -3,7 +3,7 @@ package com.hawkeye.detection.business.engine;
 import com.common.utils.annotation.LogExecutionTime;
 import com.hawkeye.detection.business.engine.model.HttpRequestConfig;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
-import com.hawkeye.detection.business.engine.model.MatcherConfig;
+import com.hawkeye.detection.business.engine.model.MatcherDef;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage.HttpStep;
 import com.hawkeye.detection.common.pojo.entity.DetectionResult;
@@ -26,18 +26,18 @@ public class DetectionEngine {
 
     private final ResultWriter resultWriter;
     private final HttpExecutor httpExecutor;
-    private final MatcherChain matcherChain;
+    private final MatcherPipeline matcherPipeline;
     private final ExtractorChain extractorChain;
 
     private static final Pattern FLOW_STEP = Pattern.compile("http\\((\\d+)\\)");
 
     public DetectionEngine(ResultWriter resultWriter,
                            HttpExecutor httpExecutor,
-                           MatcherChain matcherChain,
+                           MatcherPipeline matcherPipeline,
                            ExtractorChain extractorChain) {
         this.resultWriter = resultWriter;
         this.httpExecutor = httpExecutor;
-        this.matcherChain = matcherChain;
+        this.matcherPipeline = matcherPipeline;
         this.extractorChain = extractorChain;
     }
 
@@ -134,23 +134,22 @@ public class DetectionEngine {
 
         // 步骤级匹配器
         if (step.getMatchers() != null && !step.getMatchers().isEmpty()) {
-            List<MatcherConfig> configs = step.getMatchers().stream().map(md -> {
-                MatcherConfig mc = new MatcherConfig();
-                mc.setType(md.getType());
-                mc.setPart(md.getPart());
-                mc.setCondition(md.getCondition());
-                mc.setNegative(md.getNegative() != null && md.getNegative());
-                mc.setCaseInsensitive(md.getCaseInsensitive() != null && md.getCaseInsensitive());
-                mc.setWords(toStrList(md.getConfig(), "words"));
-                mc.setStatus(toIntList(md.getConfig(), "status"));
-                mc.setDsl(toStrList(md.getConfig(), "dsl"));
-                mc.setRegex(toStrList(md.getConfig(), "regex"));
-                return mc;
+            List<MatcherDef> defs = step.getMatchers().stream().map(md -> {
+                MatcherDef def = new MatcherDef();
+                def.setType(md.getType());
+                def.setPart(md.getPart());
+                def.setCondition(md.getCondition());
+                def.setNegative(md.getNegative() != null && md.getNegative());
+                def.setCaseInsensitive(md.getCaseInsensitive() != null && md.getCaseInsensitive());
+                def.setWords(toStrList(md.getConfig(), "words"));
+                def.setStatus(toIntList(md.getConfig(), "status"));
+                def.setDsl(toStrList(md.getConfig(), "dsl"));
+                def.setRegex(toStrList(md.getConfig(), "regex"));
+                return def;
             }).toList();
 
-            return matcherChain.match(ctx, configs,
-                    step.getMatchersCondition() != null ? step.getMatchersCondition() : "or")
-                    == MatcherChain.MatchResult.MATCH;
+            return matcherPipeline.evaluate(ctx, defs,
+                    step.getMatchersCondition() != null ? step.getMatchersCondition() : "or");
         }
 
         return false;
