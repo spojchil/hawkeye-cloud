@@ -14,6 +14,7 @@ import com.hawkeye.vul.business.mapstruct.VulTemplateMapstruct;
 import com.hawkeye.vul.business.mapper.*;
 import com.hawkeye.vul.business.service.VulTemplateService;
 import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
+import com.hawkeye.vul.common.pojo.vo.vul.NucleiTemplateVO;
 import com.hawkeye.vul.common.pojo.entity.*;
 import com.hawkeye.vul.common.pojo.vo.vul.VulTemplatePageVO;
 import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateVO;
@@ -139,71 +140,60 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                         .set(VulTemplate::getDeletedAt, now));
     }
 
-    // ── 导入模板（JSON 解析 → 级联创建） ──────────────
+    // ── 导入模板（Spring MVC 自动反序列化 + @Valid 校验） ─
 
     @Override
     @LogExecutionTime("导入模板")
     @Transactional
-    public VulTemplateVO.Response importTemplate(Map<String, Object> templateJson, List<Long> categoryIds) {
-        // 1. 解析顶层信息
-        String yamlId = str(templateJson.get("id")).toLowerCase();
-        if (yamlId.isEmpty()) {
-            throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(),
-                    "模板 id 不能为空", HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
-        }
+    public VulTemplateVO.Response importTemplate(NucleiTemplateVO dto, List<Long> categoryIds) {
+        String yamlId = dto.getId();
+        NucleiTemplateVO.InfoVO info = dto.getInfo();
+        String name = info.getName();
 
-        // 同租户 + 同 yamlId + 未删除 → 拒绝重复导入
-        // 不同租户的同名模板由 DB 唯一约束 uk_tenant_yaml_deleted 保证隔离
-        VulTemplate existing = baseMapper.selectOne(
+        // yamlId + name 同租户去重
+        VulTemplate dup = baseMapper.selectOne(
                 new LambdaQueryWrapper<VulTemplate>()
                         .eq(VulTemplate::getDeletedAt, 0L)
-                        .eq(VulTemplate::getYamlId, yamlId));
-        if (existing != null) {
+                        .and(w -> w.eq(VulTemplate::getYamlId, yamlId).or().eq(VulTemplate::getName, name)));
+        if (dup != null) {
+            String reason = yamlId.equals(dup.getYamlId()) ? "yamlId" : "name";
             throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
-                    "模板 '" + yamlId + "' 已存在，不允许重复导入",
+                    "模板 '" + (reason.equals("yamlId") ? yamlId : name) + "' 已存在（" + reason + " 重复）",
                     HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
-        Map<String, Object> info = map(templateJson.get("info"));
-        Map<String, Object> classification = map(info.get("classification"));
+        NucleiTemplateVO.ClassificationVO cls = info.getClassification();
 
         VulTemplate template = new VulTemplate();
         template.setYamlId(yamlId);
-        template.setName(str(info.get("name"), yamlId));
-        template.setAuthor(str(info.get("author")));
-        template.setDescription(str(info.get("description")));
-        template.setImpact(str(info.get("impact")));
-        template.setSeverity(normalizeSeverity(str(info.get("severity"))));
-        template.setMetadata(toJson(info.get("metadata")));
-        template.setCveId(str(classification.get("cve-id")));
-        template.setCweId(str(classification.get("cwe-id")));
-        template.setCvssMetrics(str(classification.get("cvss-metrics")));
-        template.setCvssScore(dbl(classification.get("cvss-score")));
-        template.setEpssScore(dbl(classification.get("epss-score")));
-        template.setCpe(str(classification.get("cpe")));
-        template.setRemediation(str(info.get("remediation")));
-        template.setFlow(str(templateJson.get("flow")));
-        template.setVariables(toJson(templateJson.get("variables")));
+        template.setName(name);
+        template.setAuthor(info.getAuthor());
+        template.setDescription(info.getDescription());
+        template.setImpact(info.getImpact());
+        template.setSeverity(normalizeSeverity(info.getSeverity()));
+        template.setMetadata(toJson(info.getMetadata()));
+        template.setCveId(cls != null ? cls.getCveId() : null);
+        template.setCweId(cls != null ? cls.getCweId() : null);
+        template.setCvssMetrics(cls != null ? cls.getCvssMetrics() : null);
+        template.setCvssScore(cls != null ? cls.getCvssScore() : null);
+        template.setEpssScore(cls != null ? cls.getEpssScore() : null);
+        template.setCpe(cls != null ? cls.getCpe() : null);
+        template.setRemediation(info.getRemediation());
+        template.setFlow(dto.getFlow());
+        template.setVariables(toJson(dto.getVariables()));
         template.setEnabled(true);
 
         baseMapper.insert(template);
         Long templateId = template.getTemplateId();
 
-        // 2. 标签
-        saveTags(templateId, parseTagList(info.get("tags")));
-
-        // 3. 参考链接
-        saveReferences(templateId, info.get("reference"));
-
-        // 4. 分类关联
+        // 标签 / 参考链接 / 分类 / HTTP 步骤（灵活部分仍用 Map 解析）
+        saveTags(templateId, parseTagList(info.getTags()));
+        saveReferences(templateId, info.getReference());
         if (categoryIds != null && !categoryIds.isEmpty()) {
             saveCategories(templateId, categoryIds);
         }
-
-        // 5. HTTP 步骤
-        Object httpObj = templateJson.get("http");
-        if (httpObj instanceof List<?> steps) {
-            saveHttpSteps(templateId, steps);
+        if (dto.getHttp() != null) {
+            saveHttpSteps(templateId, dto.getHttp());
         }
 
         return assembleDetail(baseMapper.selectById(templateId));
@@ -271,8 +261,11 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
     private void saveTags(Long templateId, List<String> tagNames) {
         if (tagNames == null || tagNames.isEmpty()) return;
+        // 去重：同模板的标签可能在前端 JSON 中重复出现
+        Set<String> seen = new HashSet<>();
         for (String name : tagNames) {
             String lower = name.toLowerCase();
+            if (!seen.add(lower)) continue;
             VulTag tag = tagMapper.selectOne(
                     new LambdaQueryWrapper<VulTag>()
                             .eq(VulTag::getDeletedAt, 0L)
@@ -282,10 +275,17 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                 tag.setName(lower);
                 tagMapper.insert(tag);
             }
-            VulTemplateTag tt = new VulTemplateTag();
-            tt.setTemplateId(templateId);
-            tt.setTagId(tag.getTagId());
-            templateTagMapper.insert(tt);
+            // 检查是否已关联，避免重复导入时报 DuplicateKeyException
+            if (templateTagMapper.selectCount(
+                    new LambdaQueryWrapper<VulTemplateTag>()
+                            .eq(VulTemplateTag::getDeletedAt, 0L)
+                            .eq(VulTemplateTag::getTemplateId, templateId)
+                            .eq(VulTemplateTag::getTagId, tag.getTagId())) == 0) {
+                VulTemplateTag tt = new VulTemplateTag();
+                tt.setTemplateId(templateId);
+                tt.setTagId(tag.getTagId());
+                templateTagMapper.insert(tt);
+            }
         }
     }
 
@@ -295,6 +295,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             return Arrays.stream(s.split(","))
                     .map(String::trim)
                     .filter(s2 -> !s2.isEmpty())
+                    .distinct()
                     .toList();
         }
         if (tagsRaw instanceof List<?> list) {
@@ -309,6 +310,8 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
     // ── 导入：参考链接 ────────────────────────────────
 
+    private static final int MAX_REF_URL = 2048;
+
     @SuppressWarnings("unchecked")
     private void saveReferences(Long templateId, Object refRaw) {
         if (refRaw == null) return;
@@ -317,9 +320,9 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                 VulReference ref = new VulReference();
                 ref.setTemplateId(templateId);
                 if (item instanceof String s) {
-                    ref.setUrl(s.trim());
+                    ref.setUrl(trimTo(s.trim(), MAX_REF_URL));
                 } else if (item instanceof Map<?, ?> m) {
-                    ref.setUrl(str(((Map<String, Object>) m).get("url"), str(m.get("link"))));
+                    ref.setUrl(trimTo(str(((Map<String, Object>) m).get("url"), str(m.get("link"))), MAX_REF_URL));
                     ref.setTitle(str(((Map<String, Object>) m).get("title")));
                 }
                 if (ref.getUrl() != null && !ref.getUrl().isEmpty()) {
@@ -329,9 +332,13 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         } else if (refRaw instanceof String s && !s.isBlank()) {
             VulReference ref = new VulReference();
             ref.setTemplateId(templateId);
-            ref.setUrl(s.trim());
+            ref.setUrl(trimTo(s.trim(), MAX_REF_URL));
             referenceMapper.insert(ref);
         }
+    }
+
+    private String trimTo(String val, int max) {
+        return val != null && val.length() > max ? val.substring(0, max) : val;
     }
 
     // ── 导入：分类 ────────────────────────────────────

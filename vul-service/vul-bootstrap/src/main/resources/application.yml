@@ -30,9 +30,9 @@ spring:
 
 logging:
   level:
-    com.hawkeye.vul.business.mapper: debug
-    com.hawkeye.vul.business.service: info
-    com.hawkeye.vul.api.controller: debug
+    com.hawkeye.vul.business.mapper: warn
+    com.hawkeye.vul.business.service: warn
+    com.hawkeye.vul.api.controller: warn
 
 mybatis-plus:
   configuration:

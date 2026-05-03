@@ -22,13 +22,14 @@
 --    只存元数据。检测逻辑拆到 http_step / matcher / extractor。
 --    简单模板通过 UI 创建，复杂模板上传 YAML 自动解析。
 -- ============================================================
+DROP TABLE IF EXISTS `vul_template`;
 CREATE TABLE IF NOT EXISTS `vul_template`
 (
     `template_id`  BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
     `yaml_id`      VARCHAR(64) NOT NULL COMMENT 'YAML id',
-    `name`         VARCHAR(128)     NOT NULL COMMENT '模板名称',
+    `name`         VARCHAR(255)     NOT NULL COMMENT '模板名称',
     `author`       VARCHAR(128) COMMENT '作者, 逗号分隔多人',
-    `description`  VARCHAR(512) COMMENT '漏洞描述',
+    `description`  VARCHAR(3000) COMMENT '漏洞描述',
     `impact`       VARCHAR(512) COMMENT '漏洞影响说明',
     `severity`     VARCHAR(20)      NOT NULL DEFAULT 'unknown' COMMENT '严重程度: critical/high/medium/low/info/unknown',
     `metadata`     JSON COMMENT '自定义元数据, 自由 key-value',
@@ -37,9 +38,9 @@ CREATE TABLE IF NOT EXISTS `vul_template`
     `cvss_metrics` VARCHAR(128) COMMENT 'CVSS 向量, 如 3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H',
     `cvss_score`   DOUBLE COMMENT 'CVSS 评分 0.0-10.0',
     `epss_score`   DOUBLE COMMENT 'EPSS 评分 0.0-1.0',
-    `cpe`          VARCHAR(128) COMMENT 'CPE 标识, 如 cpe:/a:vendor:product:version',
-    `remediation`  VARCHAR(128) COMMENT '修复建议',
-    `flow`         VARCHAR(1024) COMMENT '多步骤执行流表达式, 如 http(1) && http(2)',
+    `cpe`          VARCHAR(255) COMMENT 'CPE 标识, 如 cpe:/a:vendor:product:version',
+    `remediation`  VARCHAR(1024) COMMENT '修复建议',
+    `flow`         VARCHAR(1500) COMMENT '多步骤执行流表达式, 如 http(1) && http(2)',
     `variables`    JSON COMMENT '模板级动态变量, 如 {"num":"{{rand_int(800000,999999)}}"}',
     `enabled`      TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '启用: 0=禁用, 1=启用',
     `tenant_id`    BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS `vul_template`
 -- 2. 标签字典表
 --    标签由模板导入时自动创建, 不提供手动 CRUD
 -- ============================================================
+DROP TABLE IF EXISTS `vul_tag`;
 CREATE TABLE IF NOT EXISTS `vul_tag`
 (
     `tag_id`      BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -83,6 +85,7 @@ CREATE TABLE IF NOT EXISTS `vul_tag`
 -- 3. 模板-标签关联表（M2M）
 --    删除时 UPDATE deleted_at = UNIX_TIMESTAMP(), 不保留历史行
 -- ============================================================
+DROP TABLE IF EXISTS `vul_template_tag`;
 CREATE TABLE IF NOT EXISTS `vul_template_tag`
 (
     `template_id` BIGINT UNSIGNED NOT NULL COMMENT '模板ID',
@@ -106,6 +109,7 @@ CREATE TABLE IF NOT EXISTS `vul_template_tag`
 --    body / raw 等 MEDIUMTEXT 字段独立存储,
 --    http_step 只存 text_id 引用, 减少主表宽度
 -- ============================================================
+DROP TABLE IF EXISTS `vul_text_content`;
 CREATE TABLE IF NOT EXISTS `vul_text_content`
 (
     `text_id`     BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -125,6 +129,7 @@ CREATE TABLE IF NOT EXISTS `vul_text_content`
 -- 5. HTTP 请求步骤表
 --    每个模板 1~N 步, step_order 从 1 开始
 -- ============================================================
+DROP TABLE IF EXISTS `vul_http_step`;
 CREATE TABLE IF NOT EXISTS `vul_http_step`
 (
     `http_id`             BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -167,6 +172,7 @@ CREATE TABLE IF NOT EXISTS `vul_http_step`
 --    step_order != NULL → 某步骤专属 matcher
 --    inner_condition 为本 matcher 内多条规则的关系
 -- ============================================================
+DROP TABLE IF EXISTS `vul_matcher`;
 CREATE TABLE IF NOT EXISTS `vul_matcher`
 (
     `matcher_id`       BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -199,6 +205,7 @@ CREATE TABLE IF NOT EXISTS `vul_matcher`
 -- 7. 提取器表
 --    从 HTTP 响应中提取变量, 供后续步骤使用
 -- ============================================================
+DROP TABLE IF EXISTS `vul_extractor`;
 CREATE TABLE IF NOT EXISTS `vul_extractor`
 (
     `extractor_id`   BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -226,6 +233,7 @@ CREATE TABLE IF NOT EXISTS `vul_extractor`
 -- 8. 漏洞分类表（树形结构）
 --    通过 parent_id 自引用实现层级
 -- ============================================================
+DROP TABLE IF EXISTS `vul_category`;
 CREATE TABLE IF NOT EXISTS `vul_category`
 (
     `category_id` BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -252,6 +260,7 @@ CREATE TABLE IF NOT EXISTS `vul_category`
 -- 9. 模板-分类关联表（M2M）
 --    删除时 UPDATE deleted_at, 重新关联时 UPDATE 回 0
 -- ============================================================
+DROP TABLE IF EXISTS `vul_template_category`;
 CREATE TABLE IF NOT EXISTS `vul_template_category`
 (
     `template_id` BIGINT UNSIGNED NOT NULL COMMENT '模板ID',
@@ -274,6 +283,7 @@ CREATE TABLE IF NOT EXISTS `vul_template_category`
 -- 10. 参考链接表
 --     从 YAML info.reference 数组拆分, 每条一个链接
 -- ============================================================
+DROP TABLE IF EXISTS `vul_reference`;
 CREATE TABLE IF NOT EXISTS `vul_reference`
 (
     `reference_id` BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -298,6 +308,7 @@ CREATE TABLE IF NOT EXISTS `vul_reference`
 --     detection-service 写入, vul-service DDL 统一管理
 --     不可变事件日志, 不继承 BaseEntity(无 create_by/update_by/deleted)
 -- ============================================================
+DROP TABLE IF EXISTS `detection_result`;
 CREATE TABLE IF NOT EXISTS `detection_result`
 (
     `result_id`            BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
