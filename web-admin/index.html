@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hawkeye 联调控制台</title>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 <style>
 :root {
   --bg: #0f172a; --card: #1e293b; --border: #334155;
@@ -88,11 +89,11 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
   <!-- ======================== 漏洞模板面板 ======================== -->
   <div id="panel-vul" class="panel active">
     <div class="card">
-      <h3>导入模板（粘贴 nuclei JSON）</h3>
+      <h3>导入模板（粘贴 JSON 或 YAML）</h3>
       <div class="row">
         <div style="flex:1"><label>模板 JSON <span style="color:var(--muted);font-weight:400">— 前端 YAML→JSON 转换后的结果</span></label>
           <textarea id="vi-json" rows="6" style="width:100%;font-family:monospace;font-size:12px"
-            placeholder='{"id":"custom-001","info":{"name":"测试模板","severity":"high","tags":"test"},...}'></textarea>
+            placeholder='支持 JSON 或 YAML — 前端自动识别格式'></textarea>
         </div>
       </div>
       <div class="row">
@@ -272,7 +273,13 @@ async function importVul() {
   const raw = document.getElementById('vi-json').value.trim();
   if (!raw) { fd.innerHTML = '<span style="color:var(--red)">请粘贴模板 JSON</span>'; return; }
   let template;
-  try { template = JSON.parse(raw); } catch(e) { fd.innerHTML = '<span style="color:var(--red)">JSON 格式错误: ' + e.message + '</span>'; return; }
+  // 先尝试 JSON，失败则尝试 YAML
+  if (raw.startsWith('{')) {
+    try { template = JSON.parse(raw); } catch(e) { fd.innerHTML = '<span style="color:var(--red)">JSON 格式错误: ' + e.message + '</span>'; return; }
+  } else {
+    try { template = jsyaml.load(raw); } catch(e) { fd.innerHTML = '<span style="color:var(--red)">YAML 格式错误: ' + e.message + '</span>'; return; }
+    if (typeof template !== 'object' || template === null) { fd.innerHTML = '<span style="color:var(--red)">YAML 解析结果无效</span>'; return; }
+  }
   const catStr = document.getElementById('vi-cats').value;
   const categoryIds = catStr ? catStr.split(',').map(Number).filter(n=>n) : [];
   fd.innerHTML = '导入中...';
