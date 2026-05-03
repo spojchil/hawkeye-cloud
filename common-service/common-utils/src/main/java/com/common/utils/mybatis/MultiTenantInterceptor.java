@@ -49,8 +49,8 @@ public class MultiTenantInterceptor implements TenantLineHandler {
     @Override
     public Expression getTenantId() {
         String tenantId = RequestContext.getHeader(HeaderConstants.HEADER_TENANT_ID);
-        // 无租户 ID 时默认使用租户 1（平台默认租户），避免内部调用/定时任务等场景报 NPE
-        return new LongValue(tenantId != null ? Long.parseLong(tenantId) : 1L);
+        // 无租户 ID 时默认使用租户 0（平台通用），避免内部调用/定时任务等场景报 NPE
+        return new LongValue(tenantId != null ? Long.parseLong(tenantId) : 0L);
     }
 
     /**
@@ -66,14 +66,13 @@ public class MultiTenantInterceptor implements TenantLineHandler {
     /**
      * 判断是否需要跳过某些表的租户隔离。
      * <p>
-     * 当前项目所有表都进行租户隔离，没有公共表，返回 {@code false} 表示不忽略任何表。
-     * 如果后续需要引入全局配置表等不需要租户隔离的表，可在此方法中按表名返回 {@code true}。
+     * account 表跳过：用户名全局唯一，登录时无租户上下文。
      *
      * @param tableName SQL 中涉及的表名
      * @return true 表示跳过该表的租户隔离
      */
     @Override
     public boolean ignoreTable(String tableName) {
-        return false;
+        return "account".equals(tableName);
     }
 }
