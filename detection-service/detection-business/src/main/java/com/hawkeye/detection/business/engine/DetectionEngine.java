@@ -3,6 +3,7 @@ package com.hawkeye.detection.business.engine;
 import com.common.utils.annotation.LogExecutionTime;
 import com.hawkeye.detection.business.engine.model.HttpRequestConfig;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
+import com.hawkeye.detection.business.engine.model.ExtractorDef;
 import com.hawkeye.detection.business.engine.model.MatcherDef;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage.HttpStep;
@@ -27,14 +28,14 @@ public class DetectionEngine {
     private final ResultWriter resultWriter;
     private final HttpExecutor httpExecutor;
     private final MatcherPipeline matcherPipeline;
-    private final ExtractorChain extractorChain;
+    private final ExtractorPipeline extractorChain;
 
     private static final Pattern FLOW_STEP = Pattern.compile("http\\((\\d+)\\)");
 
     public DetectionEngine(ResultWriter resultWriter,
                            HttpExecutor httpExecutor,
                            MatcherPipeline matcherPipeline,
-                           ExtractorChain extractorChain) {
+                           ExtractorPipeline extractorChain) {
         this.resultWriter = resultWriter;
         this.httpExecutor = httpExecutor;
         this.matcherPipeline = matcherPipeline;
@@ -129,7 +130,17 @@ public class DetectionEngine {
 
         // 步骤级提取器
         if (step.getExtractors() != null && !step.getExtractors().isEmpty()) {
-            extractorChain.extract(ctx, step.getExtractors(), resolver);
+            List<ExtractorDef> extDefs =
+                    step.getExtractors().stream().map(e -> {
+                        ExtractorDef ed = new ExtractorDef();
+                        ed.setType(e.getType()); ed.setPart(e.getPart()); ed.setName(e.getName());
+                        ed.setInternal(e.getInternal() != null && e.getInternal());
+                        ed.setGroupNum(e.getGroupNum());
+                        ed.setRegex(toStrList(e.getConfig(), "regex"));
+                        ed.setKval(toStrList(e.getConfig(), "kval"));
+                        return ed;
+                    }).toList();
+            extractorPipeline.extract(ctx, extDefs, resolver);
         }
 
         // 步骤级匹配器
