@@ -144,7 +144,6 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     @Override
     @LogExecutionTime("导入模板")
     @Transactional
-    @SuppressWarnings("unchecked")
     public VulTemplateVO.Response importTemplate(Map<String, Object> templateJson, List<Long> categoryIds) {
         // 1. 解析顶层信息
         String yamlId = str(templateJson.get("id")).toLowerCase();
@@ -153,18 +152,16 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                     "模板 id 不能为空", HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
         }
 
-        // 同名覆盖：先软删除旧模板
+        // 同租户 + 同 yamlId + 未删除 → 拒绝重复导入
+        // 不同租户的同名模板由 DB 唯一约束 uk_tenant_yaml_deleted 保证隔离
         VulTemplate existing = baseMapper.selectOne(
                 new LambdaQueryWrapper<VulTemplate>()
                         .eq(VulTemplate::getDeletedAt, 0L)
                         .eq(VulTemplate::getYamlId, yamlId));
         if (existing != null) {
-            long now = System.currentTimeMillis();
-            softDeleteByTemplateId(existing.getTemplateId(), now);
-            baseMapper.update(null,
-                    new LambdaUpdateWrapper<VulTemplate>()
-                            .eq(VulTemplate::getTemplateId, existing.getTemplateId())
-                            .set(VulTemplate::getDeletedAt, now));
+            throw new ApiException(CommonErrorCode.OPERATION_DENIED.getCode(),
+                    "模板 '" + yamlId + "' 已存在，不允许重复导入",
+                    HttpStatus.valueOf(CommonErrorCode.OPERATION_DENIED.getHttpCode()));
         }
 
         Map<String, Object> info = map(templateJson.get("info"));
