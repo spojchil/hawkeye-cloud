@@ -42,7 +42,6 @@ public class MultiTenantInterceptor implements TenantLineHandler {
      * 从 {@link RequestContext}（ThreadLocal 存储）中读取请求头 {@code X-TENANT-ID}。
      * 如果请求头为空（例如定时任务或内部调用），默认返回租户 ID = 1（平台默认租户）。
      * <p>
-     * 返回 {@link LongValue} 而非 {@link StringValue} 是因为 tenant_id 在数据库中是 bigint 类型，
      * JSqlParser 会根据 Expression 类型决定 SQL 中是否加引号。
      *
      * @return 当前租户 ID 的 SQL 表达式
