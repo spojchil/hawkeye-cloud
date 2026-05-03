@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hawkeye 联调控制台</title>
+<style>
+:root {
+  --bg: #0f172a; --card: #1e293b; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: system-ui; min-height: 100vh; }
+header {
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;
+}
+header h1 { font-size: 18px; }
+header span { font-size: 13px; color: var(--muted); }
+nav { display: flex; gap: 2px; background: var(--card); padding: 0 24px; border-bottom: 1px solid var(--border); }
+nav button {
+  background: none; border: none; color: var(--muted); padding: 10px 16px;
+  cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent;
+}
+nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+.panel { display: none; }
+.panel.active { display: block; }
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; margin-bottom: 16px;
+}
+.card h3 { font-size: 15px; margin-bottom: 12px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: flex-end; }
+label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+input, select, textarea {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 8px 12px; font-size: 13px; min-width: 120px;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; }
+button.btn {
+  background: var(--accent); color: #0f172a; border: none; border-radius: 6px;
+  padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+button.btn:hover { opacity: 0.9; }
+button.btn-sm { padding: 6px 12px; font-size: 12px; }
+button.btn-red { background: var(--red); color: #fff; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+tr:hover { background: rgba(255,255,255,0.03); }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+}
+.badge-critical { background: #7f1d1d; color: #fca5a5; }
+.badge-high { background: #78350f; color: #fbbf24; }
+.badge-medium { background: #1e3a5f; color: #93c5fd; }
+.badge-low { background: #14532d; color: #86efac; }
+.badge-info { background: #1e293b; color: #94a3b8; }
+.tag { display: inline-block; background: var(--border); padding: 1px 6px; border-radius: 4px; font-size: 11px; margin: 1px; }
+pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; max-height: 400px; }
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  justify-content: center; align-items: center; z-index: 100;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px; max-width: 900px; width: 90%; max-height: 80vh; overflow-y: auto;
+}
+.modal h3 { margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🦅 Hawkeye 联调控制台</h1>
+  <span id="status">未连接</span>
+</header>
+<nav>
+  <button class="active" data-panel="vul">🔍 漏洞模板</button>
+  <button data-panel="asset">🖥 资产</button>
+  <button data-panel="category">📁 分类</button>
+  <button data-panel="settings">⚙ 连接</button>
+</nav>
+<main>
+
+  <!-- ======================== 漏洞模板面板 ======================== -->
+  <div id="panel-vul" class="panel active">
+    <div class="card">
+      <h3>导入模板（粘贴 nuclei JSON）</h3>
+      <div class="row">
+        <div style="flex:1"><label>模板 JSON <span style="color:var(--muted);font-weight:400">— 前端 YAML→JSON 转换后的结果</span></label>
+          <textarea id="vi-json" rows="6" style="width:100%;font-family:monospace;font-size:12px"
+            placeholder='{"id":"custom-001","info":{"name":"测试模板","severity":"high","tags":"test"},...}'></textarea>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>分类 IDs <span style="color:var(--muted)">(逗号分隔, 可选)</span></label>
+          <input id="vi-cats" style="width:200px" placeholder="1,2"></div>
+        <div style="align-self:flex-end"><button class="btn" onclick="importVul()">📥 导入</button></div>
+      </div>
+      <div id="vi-feedback" style="font-size:13px;margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <div><label>搜索</label><input id="v-name" placeholder="名称" style="width:180px"></div>
+        <div><label>严重程度</label><select id="v-severity"><option value="">全部</option><option>critical</option><option>high</option><option>medium</option><option>low</option><option>info</option></select></div>
+        <div><label>标签</label><input id="v-tag" placeholder="如 cve" style="width:100px"></div>
+        <div><label>每页</label><select id="v-size"><option>10</option><option selected>20</option><option>50</option></select></div>
+        <div style="align-self:flex-end"><button class="btn" onclick="loadVul()">搜索</button></div>
+      </div>
+    </div>
+    <table><thead><tr>
+      <th>ID</th><th>yamlId</th><th>名称</th><th>严重程度</th><th>CVE</th><th>标签</th><th>分类</th><th>操作</th>
+    </tr></thead>
+    <tbody id="v-list"></tbody></table>
+  </div>
+
+  <!-- ======================== 资产面板 ======================== -->
+  <div id="panel-asset" class="panel">
+    <div class="card">
+      <h3>新增资产</h3>
+      <div class="row">
+        <div><label>名称</label><input id="a-name" placeholder="必填" style="width:150px"></div>
+        <div><label>协议</label><select id="a-proto"><option>http</option><option selected>https</option></select></div>
+        <div><label>主机</label><input id="a-host" placeholder="必填" style="width:180px"></div>
+        <div><label>端口</label><input id="a-port" value="443" style="width:80px" type="number"></div>
+        <div><label>路径</label><input id="a-path" value="/" style="width:100px"></div>
+        <div style="align-self:flex-end"><button class="btn" onclick="createAsset()">+ 新增</button></div>
+      </div>
+      <div id="a-feedback" style="font-size:13px;margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <h3>资产列表 <button class="btn btn-sm" onclick="loadAssets()" style="margin-left:12px">刷新</button></h3>
+      <table><thead><tr>
+        <th>ID</th><th>名称</th><th>主机</th><th>状态</th><th>风险</th><th>操作</th>
+      </tr></thead>
+      <tbody id="a-list"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ======================== 分类面板 ======================== -->
+  <div id="panel-category" class="panel">
+    <div class="card">
+      <h3>新增分类</h3>
+      <div class="row">
+        <div><label>名称</label><input id="c-name" placeholder="必填" style="width:150px"></div>
+        <div><label>父分类 ID</label><input id="c-pid" placeholder="空=顶级" style="width:100px"></div>
+        <div><label>描述</label><input id="c-desc" style="width:200px"></div>
+        <div style="align-self:flex-end"><button class="btn" onclick="createCategory()">+ 新增</button></div>
+      </div>
+      <div id="c-feedback" style="font-size:13px;margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <h3>分类树 <button class="btn btn-sm" onclick="loadCategories()" style="margin-left:12px">刷新</button></h3>
+      <div id="c-tree" style="font-size:13px"></div>
+    </div>
+  </div>
+
+  <!-- ======================== 连接设置 ======================== -->
+  <div id="panel-settings" class="panel">
+    <div class="card">
+      <h3>服务连接</h3>
+      <div class="row">
+        <div><label>Gateway URL</label><input id="s-gateway" value="http://localhost:8001/api" style="width:280px"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><label>用户名</label><input id="s-user" value="admin" style="width:150px"></div>
+        <div><label>密码</label><input id="s-pass" type="password" value="password" style="width:150px"></div>
+        <div style="align-self:flex-end"><button class="btn" onclick="doLogin()">登录</button></div>
+      </div>
+      <div id="s-feedback" style="font-size:13px; margin-top:8px"></div>
+    </div>
+  </div>
+</main>
+
+<!-- ======================== 详情弹窗 ======================== -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script>
+// ── 全局状态 ──
+let TOKEN = '';
+let GATEWAY = () => document.getElementById('s-gateway').value;
+
+// ── 导航 ──
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+    if (btn.dataset.panel === 'asset') loadAssets();
+    if (btn.dataset.panel === 'category') loadCategories();
+  };
+});
+
+// ── HTTP ──
+async function api(url, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  const res = await fetch(url, { headers, ...opts });
+  return res.json();
+}
+
+function fmtSeverity(s) {
+  return `<span class="badge badge-${s||'info'}">${s||'unknown'}</span>`;
+}
+function fmtTags(tags) {
+  if (!tags || !tags.length) return '';
+  return tags.map(t => `<span class="tag">${t}</span>`).join('');
+}
+
+// ── 登录 ──
+async function doLogin() {
+  const u = document.getElementById('s-user').value;
+  const p = document.getElementById('s-pass').value;
+  try {
+    const r = await api(GATEWAY() + '/auth/login', {
+      method: 'POST', body: JSON.stringify({ username: u, password: p }) });
+    if (r.success) {
+      TOKEN = r.data.token;
+      document.getElementById('status').innerText = '已连接 (' + r.data.username + ', tenant=' + r.data.tenantId + ')';
+      document.getElementById('s-feedback').innerHTML = '<span style="color:var(--green)">登录成功 — ' + r.data.username + '</span>';
+    } else {
+      document.getElementById('s-feedback').innerHTML = '<span style="color:var(--red)">' + (r.error?.message||'失败') + '</span>';
+    }
+  } catch(e) {
+    document.getElementById('s-feedback').innerHTML = '<span style="color:var(--red)">网络错误: ' + e.message + '</span>';
+  }
+}
+
+// ── 漏洞模板 ──
+async function loadVul(page) {
+  const params = new URLSearchParams();
+  const name = document.getElementById('v-name').value;
+  const sev = document.getElementById('v-severity').value;
+  const tag = document.getElementById('v-tag').value;
+  const size = document.getElementById('v-size').value;
+  if (name) params.set('name', name);
+  if (sev) params.set('severity', sev);
+  if (tag) params.set('tag', tag);
+  params.set('pageSize', size);
+  params.set('page', page || 1);
+  try {
+    const r = await api(GATEWAY() + '/vul?' + params);
+    if (!r.success) {
+      document.getElementById('v-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">' + (r.error?.message||'失败') + '</td></tr>';
+      return;
+    }
+    const records = r.data?.data || [];
+    const total = r.data?.total || 0;
+    const rows = records.map(t => `<tr>
+      <td>${t.templateId}</td><td>${t.yamlId||'-'}</td><td>${(t.name||'').slice(0,40)}</td>
+      <td>${fmtSeverity(t.severity)}</td><td>${t.cveId||'-'}</td>
+      <td>${fmtTags(t.tags)}</td><td>${fmtTags(t.categories)}</td>
+      <td>
+        <button class="btn btn-sm" onclick="showDetail(${t.templateId})">详情</button>
+        <button class="btn btn-sm btn-red" onclick="deleteVul(${t.templateId})">删</button>
+      </td>
+    </tr>`).join('');
+    document.getElementById('v-list').innerHTML = rows || '<tr><td colspan="8" style="color:var(--muted)">无结果</td></tr>';
+  } catch(e) {
+    document.getElementById('v-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">加载失败: ' + e.message + '</td></tr>';
+  }
+}
+
+async function importVul() {
+  const fd = document.getElementById('vi-feedback');
+  const raw = document.getElementById('vi-json').value.trim();
+  if (!raw) { fd.innerHTML = '<span style="color:var(--red)">请粘贴模板 JSON</span>'; return; }
+  let template;
+  try { template = JSON.parse(raw); } catch(e) { fd.innerHTML = '<span style="color:var(--red)">JSON 格式错误: ' + e.message + '</span>'; return; }
+  const catStr = document.getElementById('vi-cats').value;
+  const categoryIds = catStr ? catStr.split(',').map(Number).filter(n=>n) : [];
+  fd.innerHTML = '导入中...';
+  try {
+    const r = await api(GATEWAY() + '/vul/import', {
+      method: 'POST', body: JSON.stringify({ template, categoryIds }) });
+    if (r.success) {
+      fd.innerHTML = '<span style="color:var(--green)">导入成功！templateId=' + r.data.templateId + ', yamlId=' + r.data.yamlId + '</span>';
+      loadVul();
+    } else {
+      fd.innerHTML = '<span style="color:var(--red)">' + (r.error?.message||'失败') + '</span>';
+    }
+  } catch(e) { fd.innerHTML = '<span style="color:var(--red)">网络错误: ' + e.message + '</span>'; }
+}
+
+async function deleteVul(id) {
+  if (!confirm('确定删除模板 #' + id + '?')) return;
+  const r = await api(GATEWAY() + '/vul/' + id, { method:'DELETE' });
+  if (r.success) loadVul(); else alert(r.error?.message||'删除失败');
+}
+
+async function showDetail(id) {
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modal-content').innerHTML = '<p>加载中...</p>';
+  try {
+    const r = await api(GATEWAY() + '/vul/' + id);
+    if (!r.success) {
+      document.getElementById('modal-content').innerHTML = '<h3>错误</h3><p>' + r.error?.message + '</p>';
+      return;
+    }
+    const d = r.data;
+    let html = `<h3>#${d.templateId} ${d.yamlId ? '('+d.yamlId+')' : ''} — ${d.name||''}</h3>
+      <p>${fmtSeverity(d.severity)} | CVE: ${d.cveId||'-'} | CVSS: ${d.cvssScore||'-'} | EPSS: ${d.epssScore||'-'} | 作者: ${d.author||'-'}</p>
+      <p>Tags: ${fmtTags(d.tags)} | 分类: ${(d.categories||[]).map(c=>c.name).join(', ')}</p>
+      <p>${d.description||''}</p>
+      <p>${d.impact ? '<b>影响:</b> ' + d.impact : ''}</p>
+      <p>${d.remediation ? '<b>修复:</b> ' + d.remediation : ''}</p>`;
+    if (d.references && d.references.length) {
+      html += '<p><b>参考:</b> ' + d.references.map(r=>`<a href="${r.url}" target="_blank" style="color:var(--accent)">${r.title||r.url}</a>`).join(' | ') + '</p>';
+    }
+    if (d.httpSteps) d.httpSteps.forEach((s,i) => {
+      html += `<p style="color:var(--accent);margin-top:12px"><b>Step ${s.stepOrder}: ${s.method||'RAW'} ${s.httpName||''}</b> (matchers: ${s.matchersCondition||'or'})</p>`;
+      if (s.path) html += `<pre style="font-size:11px">Path: ${JSON.stringify(s.path)}</pre>`;
+      if (s.headers) html += `<pre style="font-size:11px">Headers: ${JSON.stringify(s.headers,null,2)}</pre>`;
+      if (s.matchers) s.matchers.forEach(m => {
+        html += `<pre style="font-size:11px">Matcher[${m.type}]: part=${m.part} cond=${m.innerCondition} neg=${m.negative} config=${JSON.stringify(m.config)}</pre>`;
+      });
+      if (s.extractors) s.extractors.forEach(e => {
+        html += `<pre style="font-size:11px">Extractor[${e.type}]: name=${e.extractorName} config=${JSON.stringify(e.config)}</pre>`;
+      });
+    });
+    document.getElementById('modal-content').innerHTML = html;
+  } catch(e) {
+    document.getElementById('modal-content').innerHTML = '<h3>错误</h3><p>' + e.message + '</p>';
+  }
+}
+
+// ── 资产 ──
+async function createAsset() {
+  const fd = document.getElementById('a-feedback');
+  fd.innerHTML = '提交中...';
+  const body = {
+    name: document.getElementById('a-name').value,
+    requestProtocol: document.getElementById('a-proto').value,
+    requestHost: document.getElementById('a-host').value,
+    requestPort: Number(document.getElementById('a-port').value),
+    requestPath: document.getElementById('a-path').value
+  };
+  try {
+    const r = await api(GATEWAY() + '/asset', { method:'POST', body:JSON.stringify(body) });
+    if (r.success) { fd.innerHTML = '<span style="color:var(--green)">创建成功！assetId=' + r.data.assetId + '</span>'; loadAssets(); }
+    else { fd.innerHTML = '<span style="color:var(--red)">' + (r.error?.message||'失败') + '</span>'; }
+  } catch(e) { fd.innerHTML = '<span style="color:var(--red)">网络错误: ' + e.message + '</span>'; }
+}
+
+async function deleteAsset(id) {
+  if (!confirm('确定删除资产 #' + id + '?')) return;
+  const r = await api(GATEWAY() + '/asset/' + id, { method:'DELETE' });
+  if (r.success) loadAssets(); else alert(r.error?.message||'删除失败');
+}
+
+async function loadAssets() {
+  try {
+    const r = await api(GATEWAY() + '/asset');
+    if (!r.success) {
+      document.getElementById('a-list').innerHTML = '<tr><td colspan="6" style="color:var(--red)">' + (r.error?.message||'失败') + '</td></tr>';
+      return;
+    }
+    const records = r.data?.data || [];
+    const rows = records.map(a => `<tr>
+      <td>${a.assetId}</td><td>${a.name}</td><td>${a.requestHost}:${a.requestPort}</td>
+      <td>${a.status||'-'}</td><td>${a.riskLevel||'-'}</td>
+      <td><button class="btn btn-sm btn-red" onclick="deleteAsset(${a.assetId})">删除</button></td>
+    </tr>`).join('');
+    document.getElementById('a-list').innerHTML = rows || '<tr><td colspan="6" style="color:var(--muted)">暂无资产</td></tr>';
+  } catch(e) {
+    document.getElementById('a-list').innerHTML = '<tr><td colspan="6" style="color:var(--red)">加载失败: ' + e.message + '</td></tr>';
+  }
+}
+
+// ── 分类 ──
+async function createCategory() {
+  const fd = document.getElementById('c-feedback');
+  fd.innerHTML = '提交中...';
+  const body = {
+    name: document.getElementById('c-name').value,
+    parentId: document.getElementById('c-pid').value ? Number(document.getElementById('c-pid').value) : null,
+    description: document.getElementById('c-desc').value
+  };
+  try {
+    const r = await api(GATEWAY() + '/asset-category', { method:'POST', body:JSON.stringify(body) });
+    if (r.success) { fd.innerHTML = '<span style="color:var(--green)">创建成功！categoryId=' + r.data.categoryId + '</span>'; loadCategories(); }
+    else { fd.innerHTML = '<span style="color:var(--red)">' + (r.error?.message||'失败') + '</span>'; }
+  } catch(e) { fd.innerHTML = '<span style="color:var(--red)">网络错误: ' + e.message + '</span>'; }
+}
+
+function renderTree(list, level) {
+  if (!list || !list.length) return '';
+  return list.map(c => `<div style="padding:4px 0;padding-left:${(level||0)*20}px">
+    📁 ${c.name} <span style="color:var(--muted);font-size:11px">#${c.categoryId}</span>
+    ${c.description ? '<span style="color:var(--muted);font-size:11px"> — ' + c.description + '</span>' : ''}
+  </div>` + renderTree(c.children, (level||0)+1)).join('');
+}
+
+async function loadCategories() {
+  try {
+    const r = await api(GATEWAY() + '/asset-category');
+    if (!r.success) {
+      document.getElementById('c-tree').innerHTML = '<span style="color:var(--red)">' + (r.error?.message||'失败') + '</span>';
+      return;
+    }
+    document.getElementById('c-tree').innerHTML = renderTree(r.data||[], 0) || '<span style="color:var(--muted)">暂无分类</span>';
+  } catch(e) {
+    document.getElementById('c-tree').innerHTML = '<span style="color:var(--red)">加载失败: ' + e.message + '</span>';
+  }
+}
+
+// ── 弹窗关闭 ──
+document.getElementById('modal').onclick = function(e) {
+  if (e.target === this) this.classList.remove('show');
+};
+
+// ── 初始化 ──
+loadVul();
+</script>
+</body>
+</html>
