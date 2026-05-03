@@ -7,13 +7,16 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.common.utils.annotation.LogExecutionTime;
+import com.common.utils.constant.HeaderConstants;
+import com.common.utils.context.RequestContext;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
+import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
+import com.hawkeye.detection.common.pojo.entity.DetectionResult;
 import com.hawkeye.task.business.cache.TemplateCache;
 import com.hawkeye.task.business.feign.AssetServiceFeign;
-import com.hawkeye.detection.common.pojo.entity.DetectionResult;
 import com.hawkeye.task.business.mapper.DetectionResultMapper;
 import com.hawkeye.task.business.mapper.TaskItemMapper;
 import com.hawkeye.task.business.mapper.TaskMapper;
@@ -21,14 +24,13 @@ import com.hawkeye.task.business.mapstruct.TaskMapstruct;
 import com.hawkeye.task.business.mq.TaskProducerService;
 import com.hawkeye.task.common.enums.TaskItemStatusEnum;
 import com.hawkeye.task.common.enums.TaskStatusEnum;
+import com.hawkeye.task.common.pojo.dto.TemplateDetectConfig;
 import com.hawkeye.task.common.pojo.entity.Task;
 import com.hawkeye.task.common.pojo.entity.TaskItem;
 import com.hawkeye.task.business.service.TaskService;
 import com.hawkeye.task.common.pojo.vo.task.PageTaskVO;
 import com.hawkeye.task.common.pojo.vo.task.TaskResultVO;
 import com.hawkeye.task.common.pojo.vo.task.TaskVO;
-import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
-import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,14 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
-/**
- * 任务服务实现。
- * <p>
- * 核心流程：创建任务 → 异步拉取模板/资产 → M×N 拆分 → 构建检测项消息 → RocketMQ 投递。
- * 全局异常处理器（GlobalExceptionHandler）兜底未捕获异常，此处不重复 try-catch。
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -73,10 +68,6 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return taskMapstruct.toResponseVO(task);
     }
 
-    /**
-     * 异步拆分：拉取模板配置 + 资产信息 → 构建 M×N 条检测项消息 → 持久化 task_item → 投递 RocketMQ。
-     * 任何环节失败都会标记任务为 ERROR，由全局异常处理器兜底未预期的运行时异常。
-     */
     @Async
     @Transactional
     public void splitAndDispatch(Task task, List<Long> assetIds, List<Long> templateIds) {
@@ -84,23 +75,20 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         task.setStartTime(LocalDateTime.now());
         updateById(task);
 
-        // 批量拉取模板
-        Map<Long, VulTemplateDetectDTO> templates = templateCache.batchGet(templateIds);
+        Map<Long, TemplateDetectConfig> templates = templateCache.batchGet(templateIds);
         if (templates.isEmpty()) {
             task.setStatus(TaskStatusEnum.ERROR);
             updateById(task);
             return;
         }
 
-        // 批量拉取资产
-        Map<Long, Map<String, Object>> assets = fetchAssets(assetIds);
+        Map<Long, AssetVO.Response> assets = fetchAssets(assetIds);
         if (assets.isEmpty()) {
             task.setStatus(TaskStatusEnum.ERROR);
             updateById(task);
             return;
         }
 
-        // M资产 × N模板 拆分
         int total = assetIds.size() * templates.size();
         task.setTotalItems(total);
         updateById(task);
@@ -115,8 +103,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         }
     }
 
-    private Map<Long, Map<String, Object>> fetchAssets(List<Long> assetIds) {
-        Map<Long, Map<String, Object>> assets = new LinkedHashMap<>();
+    private Map<Long, AssetVO.Response> fetchAssets(List<Long> assetIds) {
+        Map<Long, AssetVO.Response> assets = new LinkedHashMap<>();
         for (Long assetId : assetIds) {
             try {
                 var resp = assetServiceFeign.getAsset(assetId);
@@ -132,22 +120,18 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
 
     private List<TaskItemMessage> buildMessages(Task task, List<Long> assetIds,
                                                  List<Long> templateIds,
-                                                 Map<Long, Map<String, Object>> assets,
-                                                 Map<Long, VulTemplateDetectDTO> templates) {
+                                                 Map<Long, AssetVO.Response> assets,
+                                                 Map<Long, TemplateDetectConfig> templates) {
         List<TaskItemMessage> messages = new ArrayList<>();
         long now = System.currentTimeMillis();
+        Long tenantId = currentTenantId();
 
         for (Long assetId : assetIds) {
-            Map<String, Object> asset = assets.get(assetId);
+            AssetVO.Response asset = assets.get(assetId);
             if (asset == null) continue;
 
-            String protocol = (String) asset.getOrDefault("requestProtocol", "https");
-            String host = (String) asset.getOrDefault("requestHost", "");
-            int port = asset.get("requestPort") instanceof Number n ? n.intValue() : 443;
-            String path = (String) asset.getOrDefault("requestPath", "/");
-
             for (Long templateId : templateIds) {
-                VulTemplateDetectDTO tpl = templates.get(templateId);
+                TemplateDetectConfig tpl = templates.get(templateId);
                 if (tpl == null) continue;
 
                 TaskItem item = new TaskItem();
@@ -160,12 +144,12 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                 TaskItemMessage msg = new TaskItemMessage();
                 msg.setTaskId(task.getTaskId());
                 msg.setItemId(item.getItemId());
-                msg.setTenantId(1L);
+                msg.setTenantId(tenantId);
                 msg.setCreatedAt(now);
-                msg.setAssetProtocol(protocol);
-                msg.setAssetHost(host);
-                msg.setAssetPort(port);
-                msg.setAssetPath(path);
+                msg.setAssetProtocol(asset.getRequestProtocol());
+                msg.setAssetHost(asset.getRequestHost());
+                msg.setAssetPort(asset.getRequestPort());
+                msg.setAssetPath(asset.getRequestPath() != null ? asset.getRequestPath() : "/");
                 msg.setTemplateId(tpl.getYamlId());
                 msg.setFlow(tpl.getFlow());
                 msg.setVariables(tpl.getVariables());
@@ -177,7 +161,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     }
 
     private List<TaskItemMessage.HttpStep> toHttpSteps(
-            List<VulTemplateDetectDTO.HttpStepDetect> steps) {
+            List<TemplateDetectConfig.HttpStepConfig> steps) {
         if (steps == null) return null;
         return steps.stream().map(s -> {
             TaskItemMessage.HttpStep hs = new TaskItemMessage.HttpStep();
@@ -214,7 +198,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @LogExecutionTime("查询任务详情")
     @Override
     public TaskVO.Response getById(Long taskId) {
-        Task task = baseMapper.selectById(taskId);
+        Task task = baseMapper.selectOne(
+                new LambdaQueryWrapper<Task>()
+                        .eq(Task::getTaskId, taskId)
+                        .eq(Task::getDeletedAt, 0L));
         if (task == null) {
             throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "任务不存在",
                     HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
@@ -229,6 +216,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         int pageNum = request.getPage() != null ? request.getPage() : 1;
 
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<Task>()
+                .eq(Task::getDeletedAt, 0L)
                 .like(StrUtil.isNotBlank(request.getTaskName()), Task::getTaskName, request.getTaskName())
                 .eq(request.getStatus() != null, Task::getStatus, request.getStatus())
                 .orderByDesc(Task::getCreateTime);
@@ -248,11 +236,15 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     public void cancel(Long taskId) {
         boolean updated = lambdaUpdate()
                 .eq(Task::getTaskId, taskId)
+                .eq(Task::getDeletedAt, 0L)
                 .eq(Task::getStatus, TaskStatusEnum.PENDING)
                 .set(Task::getStatus, TaskStatusEnum.CANCELLED)
                 .update();
         if (!updated) {
-            Task task = baseMapper.selectById(taskId);
+            Task task = baseMapper.selectOne(
+                    new LambdaQueryWrapper<Task>()
+                            .eq(Task::getTaskId, taskId)
+                            .eq(Task::getDeletedAt, 0L));
             if (task == null) {
                 throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), "任务不存在",
                         HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
@@ -264,7 +256,9 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
 
     @Override
     public List<Long> listRunningTaskIds() {
-        return lambdaQuery().eq(Task::getStatus, TaskStatusEnum.RUNNING)
+        return lambdaQuery()
+                .eq(Task::getDeletedAt, 0L)
+                .eq(Task::getStatus, TaskStatusEnum.RUNNING)
                 .select(Task::getTaskId).list()
                 .stream().map(Task::getTaskId).toList();
     }
@@ -284,7 +278,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
 
         List<TaskResultVO> vos = result.getRecords().stream().map(r -> {
             TaskResultVO vo = new TaskResultVO();
-            vo.setId(r.getId()); vo.setTaskId(r.getTaskId()); vo.setTaskItemId(r.getTaskItemId());
+            vo.setId(r.getResultId()); vo.setTaskId(r.getTaskId()); vo.setTaskItemId(r.getTaskItemId());
             vo.setTemplateId(r.getTemplateId()); vo.setAssetId(r.getAssetId());
             vo.setStatus(r.getStatus()); vo.setResponseStatusCode(r.getResponseStatusCode());
             vo.setResponseSize(r.getResponseSize()); vo.setResponseSummary(r.getResponseSummary());
@@ -294,5 +288,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         }).toList();
 
         return ListResult.result((int) result.getTotal(), vos);
+    }
+
+    private static Long currentTenantId() {
+        String tid = RequestContext.getHeader(HeaderConstants.HEADER_TENANT_ID);
+        return tid != null ? Long.parseLong(tid) : 0L;
     }
 }

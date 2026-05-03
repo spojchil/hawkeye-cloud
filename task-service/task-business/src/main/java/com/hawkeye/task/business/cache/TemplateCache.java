@@ -1,9 +1,12 @@
 package com.hawkeye.task.business.cache;
 
 import com.alibaba.fastjson2.JSON;
+import com.common.utils.context.RequestContext;
+import com.common.utils.constant.HeaderConstants;
 import com.hawkeye.task.business.config.TaskConfig;
 import com.hawkeye.task.business.feign.VulServiceFeign;
-import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
+import com.hawkeye.task.common.pojo.dto.TemplateDetectConfig;
+import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -17,15 +20,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 模板检测配置缓存（task-service 侧）。
+ * 模板检测配置缓存。
  * <p>
- * <b>缓存穿透：</b> Feign 返回 null 时缓存 NULL_SENTINEL（TTL 1min），
- * 防止攻击者用不存在的 ID 频繁穿透到 DB。
- * <p>
- * <b>缓存击穿：</b> 逻辑过期——缓存值包装 expireAt，过期后返回旧值并异步刷新，
- * 避免热点 key 过期瞬间大量请求穿透。
- * <p>
- * <b>缓存雪崩：</b> TTL 添加随机偏移（±jitter），避免大量 key 同时过期。
+ * L1 Caffeine + L2 Redis，Feign → VulTemplateVO.Response → 修剪 → TemplateDetectConfig。
  */
 @Slf4j
 @Component
@@ -33,9 +30,6 @@ public class TemplateCache {
 
     private static final String REDIS_PREFIX = "vul:template:";
 
-    /**
-     * 逻辑过期包装。physicalExpireAt 之后 Caffeine 逐出，logicalExpireAt 之后返回旧值+异步刷新。
-     */
     private record CacheEntry<T>(T data, long logicalExpireAt) {
         static <T> CacheEntry<T> of(T data, Duration logicalTtl) {
             return new CacheEntry<>(data, System.currentTimeMillis() + logicalTtl.toMillis());
@@ -43,12 +37,11 @@ public class TemplateCache {
         boolean logicallyExpired() { return System.currentTimeMillis() > logicalExpireAt; }
     }
 
-    /** 穿透标记 */
-    private static final VulTemplateDetectDTO NULL_SENTINEL = new VulTemplateDetectDTO();
+    private static final TemplateDetectConfig NULL_SENTINEL = new TemplateDetectConfig();
 
     private final VulServiceFeign vulServiceFeign;
     private final StringRedisTemplate redisTemplate;
-    private final com.github.benmanes.caffeine.cache.Cache<Long, CacheEntry<VulTemplateDetectDTO>> caffeineCache;
+    private final com.github.benmanes.caffeine.cache.Cache<Long, CacheEntry<TemplateDetectConfig>> caffeineCache;
     private final ExecutorService refreshExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     private final Duration logicalTtl;
@@ -70,59 +63,55 @@ public class TemplateCache {
                 .build();
     }
 
-    public VulTemplateDetectDTO get(Long templateId) {
-        CacheEntry<VulTemplateDetectDTO> entry = caffeineCache.getIfPresent(templateId);
+    public TemplateDetectConfig get(Long templateId) {
+        CacheEntry<TemplateDetectConfig> entry = caffeineCache.getIfPresent(templateId);
         if (entry != null) {
-            if (entry.data == NULL_SENTINEL) return null;          // 穿透保护命中
-            if (!entry.logicallyExpired()) return entry.data;      // 正常命中
-            // 逻辑过期：返回旧值，异步刷新
+            if (entry.data == NULL_SENTINEL) return null;
+            if (!entry.logicallyExpired()) return entry.data;
             asyncRefresh(templateId);
             return entry.data;
         }
 
-        // L2 Redis
         String redisKey = REDIS_PREFIX + templateId;
         try {
             String json = redisTemplate.opsForValue().get(redisKey);
             if (json != null) {
-                VulTemplateDetectDTO dto = JSON.parseObject(json, VulTemplateDetectDTO.class);
-                if (dto != null) {
-                    caffeineCache.put(templateId, CacheEntry.of(dto, logicalTtl));
-                    return dto;
+                TemplateDetectConfig cfg = JSON.parseObject(json, TemplateDetectConfig.class);
+                if (cfg != null) {
+                    caffeineCache.put(templateId, CacheEntry.of(cfg, logicalTtl));
+                    return cfg;
                 }
             }
         } catch (Exception e) {
-            log.warn("Redis 不可用，跳过 L2 缓存: {}", e.getMessage());
+            log.warn("Redis 不可用: {}", e.getMessage());
         }
 
-        // Feign 穿透
-        log.info("缓存未命中，Feign 查 vul-service: templateId={}", templateId);
-        VulTemplateDetectDTO dto = vulServiceFeign.getTemplate(templateId).getData();
-        if (dto != null) {
-            caffeineCache.put(templateId, CacheEntry.of(dto, logicalTtl));
-            try {
-                redisTemplate.opsForValue().set(redisKey, JSON.toJSONString(dto), randomTtl(logicalTtl));
-            } catch (Exception e) {
-                log.warn("Redis 写缓存失败，不影响主流程: {}", e.getMessage());
+        // Feign → 修剪 → 缓存
+        log.debug("Feign 查 vul-service: templateId={}", templateId);
+        try {
+            VulTemplateVO.Response vo = vulServiceFeign.getTemplate(templateId).getData();
+            if (vo != null) {
+                TemplateDetectConfig cfg = TemplateDetectConfig.from(vo);
+                caffeineCache.put(templateId, CacheEntry.of(cfg, logicalTtl));
+                try {
+                    redisTemplate.opsForValue().set(redisKey, JSON.toJSONString(cfg), randomTtl(logicalTtl));
+                } catch (Exception e) {
+                    log.warn("Redis 写缓存失败: {}", e.getMessage());
+                }
+                return cfg;
             }
-        } else {
-            // 穿透保护：缓存空值，短 TTL
-            caffeineCache.put(templateId, CacheEntry.of(NULL_SENTINEL, nullTtl));
+        } catch (Exception e) {
+            log.error("Feign 查 vul-service 失败 templateId={}: {}", templateId, e.getMessage());
         }
-        return dto;
+        caffeineCache.put(templateId, CacheEntry.of(NULL_SENTINEL, nullTtl));
+        return null;
     }
 
-    /**
-     * 批量获取模板配置。
-     * <p>
-     * 不是真批量：循环调单个 {@link #get(Long)}，每次独立走缓存/Feign。
-     * 模板数通常 ≤ 50，N 次调用可接受。
-     */
-    public Map<Long, VulTemplateDetectDTO> batchGet(List<Long> templateIds) {
-        Map<Long, VulTemplateDetectDTO> result = new LinkedHashMap<>();
+    public Map<Long, TemplateDetectConfig> batchGet(List<Long> templateIds) {
+        Map<Long, TemplateDetectConfig> result = new LinkedHashMap<>();
         for (Long id : templateIds) {
-            VulTemplateDetectDTO dto = get(id);
-            if (dto != null) result.put(id, dto);
+            TemplateDetectConfig cfg = get(id);
+            if (cfg != null) result.put(id, cfg);
         }
         return result;
     }
@@ -130,15 +119,13 @@ public class TemplateCache {
     private void asyncRefresh(Long templateId) {
         refreshExecutor.submit(() -> {
             try {
-                log.debug("异步刷新缓存: templateId={}", templateId);
-                VulTemplateDetectDTO dto = vulServiceFeign.getTemplate(templateId).getData();
-                if (dto != null) {
-                    caffeineCache.put(templateId, CacheEntry.of(dto, logicalTtl));
+                VulTemplateVO.Response vo = vulServiceFeign.getTemplate(templateId).getData();
+                if (vo != null) {
+                    TemplateDetectConfig cfg = TemplateDetectConfig.from(vo);
+                    caffeineCache.put(templateId, CacheEntry.of(cfg, logicalTtl));
                     try {
                         redisTemplate.opsForValue().set(
-                                REDIS_PREFIX + templateId,
-                                JSON.toJSONString(dto),
-                                randomTtl(logicalTtl));
+                                REDIS_PREFIX + templateId, JSON.toJSONString(cfg), randomTtl(logicalTtl));
                     } catch (Exception ignored) { }
                 }
             } catch (Exception e) {
