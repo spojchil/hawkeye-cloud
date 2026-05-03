@@ -13,9 +13,8 @@ import com.common.utils.response.ListResult;
 import com.hawkeye.vul.business.mapstruct.VulTemplateMapstruct;
 import com.hawkeye.vul.business.mapper.*;
 import com.hawkeye.vul.business.service.VulTemplateService;
-import com.hawkeye.vul.common.pojo.dto.VulTemplateDetectDTO;
-import com.hawkeye.vul.common.pojo.vo.vul.NucleiTemplateVO;
 import com.hawkeye.vul.common.pojo.entity.*;
+import com.hawkeye.vul.common.pojo.vo.vul.NucleiTemplateVO;
 import com.hawkeye.vul.common.pojo.vo.vul.VulTemplatePageVO;
 import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateVO;
 import lombok.RequiredArgsConstructor;
@@ -104,7 +103,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
     @Override
     @LogExecutionTime("查询模板详情")
-    public VulTemplateVO.Response getDetail(Long templateId) {
+    public VulTemplateVO.Response getById(Long templateId) {
         VulTemplate template = baseMapper.selectOne(
                 new LambdaQueryWrapper<VulTemplate>()
                         .eq(VulTemplate::getTemplateId, templateId)
@@ -195,56 +194,6 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         }
 
         return assembleDetail(baseMapper.selectById(templateId));
-    }
-
-    // ── Feign 检测接口 ─────────────────────────────────
-
-    @Override
-    @LogExecutionTime("获取检测配置")
-    public VulTemplateDetectDTO getForDetection(Long templateId) {
-        VulTemplate template = baseMapper.selectOne(
-                new LambdaQueryWrapper<VulTemplate>()
-                        .eq(VulTemplate::getTemplateId, templateId)
-                        .eq(VulTemplate::getDeletedAt, 0L));
-        if (template == null) {
-            throw new ApiException(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(),
-                    "漏洞模板不存在", HttpStatus.valueOf(CommonErrorCode.RESOURCE_NOT_FOUND.getHttpCode()));
-        }
-
-        VulTemplateDetectDTO dto = new VulTemplateDetectDTO();
-        dto.setTemplateId(template.getTemplateId());
-        dto.setYamlId(template.getYamlId());
-        dto.setFlow(template.getFlow());
-        dto.setVariables(parseJsonMap(template.getVariables()));
-
-        List<VulHttpStep> steps = httpStepMapper.selectList(
-                new LambdaQueryWrapper<VulHttpStep>()
-                        .eq(VulHttpStep::getDeletedAt, 0L)
-                        .eq(VulHttpStep::getTemplateId, templateId)
-                        .orderByAsc(VulHttpStep::getStepOrder));
-        dto.setHttpSteps(steps.stream().map(step -> {
-            VulTemplateDetectDTO.HttpStepDetect sd = new VulTemplateDetectDTO.HttpStepDetect();
-            sd.setStepOrder(step.getStepOrder());
-            sd.setHttpName(step.getHttpName());
-            sd.setMethod(step.getMethod());
-            sd.setPath(parseJsonList(step.getPath()));
-            sd.setHeaders(parseJsonMapStr(step.getHeaders()));
-            sd.setAttack(step.getAttack());
-            sd.setMatchersCondition(step.getMatchersCondition());
-            sd.setPayloads(parseJsonMap(step.getPayloads()));
-            sd.setStopAtFirstMatch(step.getStopAtFirstMatch());
-            sd.setSelfContained(step.getSelfContained());
-            sd.setRedirects(step.getRedirects());
-            sd.setMaxRedirects(step.getMaxRedirects());
-            sd.setHostRedirects(step.getHostRedirects());
-            sd.setUnsafe(step.getUnsafe());
-            sd.setCookieReuse(step.getCookieReuse());
-            sd.setReqCondition(step.getReqCondition());
-            sd.setMatchers(getMatcherDetects(templateId, step.getStepOrder()));
-            sd.setExtractors(getExtractorDetects(templateId, step.getStepOrder()));
-            return sd;
-        }).toList());
-        return dto;
     }
 
     @Override
@@ -633,45 +582,6 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             ev.setInternal(e.getInternal());
             ev.setGroupNum(e.getGroupNum());
             return ev;
-        }).toList();
-    }
-
-    private List<VulTemplateDetectDTO.MatcherDetect> getMatcherDetects(Long templateId, Integer stepOrder) {
-        return matcherMapper.selectList(
-                new LambdaQueryWrapper<VulMatcher>()
-                        .eq(VulMatcher::getDeletedAt, 0L)
-                        .eq(VulMatcher::getTemplateId, templateId)
-                        .and(w -> w.eq(VulMatcher::getStepOrder, stepOrder)
-                                .or().isNull(VulMatcher::getStepOrder))
-        ).stream().map(m -> {
-            VulTemplateDetectDTO.MatcherDetect md = new VulTemplateDetectDTO.MatcherDetect();
-            md.setType(m.getType());
-            md.setPart(m.getPart());
-            md.setInnerCondition(m.getInnerCondition());
-            md.setNegative(m.getNegative());
-            md.setCaseInsensitive(m.getCaseInsensitive());
-            md.setMatchAll(m.getMatchAll());
-            md.setConfig(parseJsonMap(m.getConfig()));
-            return md;
-        }).toList();
-    }
-
-    private List<VulTemplateDetectDTO.ExtractorDetect> getExtractorDetects(Long templateId, Integer stepOrder) {
-        return extractorMapper.selectList(
-                new LambdaQueryWrapper<VulExtractor>()
-                        .eq(VulExtractor::getDeletedAt, 0L)
-                        .eq(VulExtractor::getTemplateId, templateId)
-                        .and(w -> w.eq(VulExtractor::getStepOrder, stepOrder)
-                                .or().isNull(VulExtractor::getStepOrder))
-        ).stream().map(e -> {
-            VulTemplateDetectDTO.ExtractorDetect ed = new VulTemplateDetectDTO.ExtractorDetect();
-            ed.setType(e.getType());
-            ed.setPart(e.getPart());
-            ed.setExtractorName(e.getExtractorName());
-            ed.setConfig(parseJsonMap(e.getConfig()));
-            ed.setInternal(e.getInternal());
-            ed.setGroupNum(e.getGroupNum());
-            return ed;
         }).toList();
     }
 

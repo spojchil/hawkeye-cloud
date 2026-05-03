@@ -30,8 +30,8 @@ public class VulTemplateController {
 
     @GetMapping("/{templateId}")
     @Operation(summary = "获取模板详情")
-    public ApiResponse<VulTemplateVO.Response> getDetail(@PathVariable Long templateId) {
-        return ApiResponse.success(vulTemplateService.getDetail(templateId));
+    public ApiResponse<VulTemplateVO.Response> getById(@PathVariable Long templateId) {
+        return ApiResponse.success(vulTemplateService.getById(templateId));
     }
 
     @DeleteMapping("/{templateId}")
