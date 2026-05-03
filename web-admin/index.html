@@ -79,12 +79,42 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
   <span id="status">未连接</span>
 </header>
 <nav>
+  <button data-panel="task">📋 任务</button>
   <button class="active" data-panel="vul">🔍 漏洞模板</button>
   <button data-panel="asset">🖥 资产</button>
   <button data-panel="category">📁 分类</button>
   <button data-panel="settings">⚙ 连接</button>
 </nav>
 <main>
+
+  <!-- ======================== 任务面板 ======================== -->
+  <div id="panel-task" class="panel">
+    <div class="card">
+      <h3>创建检测任务</h3>
+      <div class="row">
+        <div><label>任务名称</label><input id="tk-name" value="联调测试" style="width:200px"></div>
+        <div><label>资产 IDs (逗号分隔)</label><input id="tk-assets" value="1" style="width:150px"></div>
+        <div><label>模板 IDs</label><input id="tk-tpls" value="1" style="width:150px"></div>
+        <div><label>优先级</label><select id="tk-pri"><option value="0">高</option><option value="1" selected>中</option><option value="2">低</option></select></div>
+        <div style="align-self:flex-end"><button class="btn" onclick="createTask()">▶ 提交</button></div>
+      </div>
+      <div id="tk-feedback" style="font-size:13px;margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <h3>任务列表 <button class="btn btn-sm" onclick="loadTasks()" style="margin-left:12px">刷新</button></h3>
+      <table><thead><tr>
+        <th>ID</th><th>名称</th><th>状态</th><th>检测项</th><th>完成</th><th>失败</th><th>创建时间</th><th>操作</th>
+      </tr></thead>
+      <tbody id="tk-list"></tbody></table>
+    </div>
+    <div class="card" id="tk-results-card" style="display:none">
+      <h3>检测结果 <span id="tk-results-title"></span></h3>
+      <table><thead><tr>
+        <th>结果ID</th><th>taskItemId</th><th>模板ID</th><th>状态</th><th>HTTP</th><th>耗时</th><th>匹配器</th>
+      </tr></thead>
+      <tbody id="tk-results"></tbody></table>
+    </div>
+  </div>
 
   <!-- ======================== 漏洞模板面板 ======================== -->
   <div id="panel-vul" class="panel active">
@@ -195,6 +225,7 @@ document.querySelectorAll('nav button').forEach(btn => {
     btn.classList.add('active');
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+    if (btn.dataset.panel === 'task') loadTasks();
     if (btn.dataset.panel === 'asset') loadAssets();
     if (btn.dataset.panel === 'category') loadCategories();
   };
@@ -233,6 +264,80 @@ async function doLogin() {
   } catch(e) {
     document.getElementById('s-feedback').innerHTML = '<span style="color:var(--red)">网络错误: ' + e.message + '</span>';
   }
+}
+
+// ── 任务 ──
+async function createTask() {
+  const fd = document.getElementById('tk-feedback');
+  const name = document.getElementById('tk-name').value;
+  const assetIds = document.getElementById('tk-assets').value.split(',').map(Number).filter(n=>n);
+  const templateIds = document.getElementById('tk-tpls').value.split(',').map(Number).filter(n=>n);
+  if (!name || !assetIds.length || !templateIds.length) {
+    fd.innerHTML = '<span style="color:var(--red)">请填写任务名称、资产IDs、模板IDs</span>'; return;
+  }
+  fd.innerHTML = '提交中...';
+  try {
+    const r = await api(GATEWAY() + '/task', {
+      method: 'POST', body: JSON.stringify({ taskName: name, assetIds, templateIds }) });
+    if (r.success) {
+      fd.innerHTML = `<span style="color:var(--green)">任务创建成功！taskId=${r.data.taskId}, 状态=${r.data.status}</span>`;
+      setTimeout(loadTasks, 800);
+    } else {
+      fd.innerHTML = `<span style="color:var(--red)">${r.error?.message||'失败'}</span>`;
+    }
+  } catch(e) { fd.innerHTML = `<span style="color:var(--red)">网络错误: ${e.message}</span>`; }
+}
+
+async function loadTasks() {
+  try {
+    const r = await api(GATEWAY() + '/task');
+    if (!r.success) { document.getElementById('tk-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">'+(r.error?.message||'失败')+'</td></tr>'; return; }
+    const rows = (r.data?.data||[]).map(t => `<tr>
+      <td>${t.taskId}</td><td>${(t.taskName||'').slice(0,30)}</td><td>${fmtTaskStatus(t.status)}</td>
+      <td>${t.totalItems||0}</td><td>${t.completedItems||0}</td><td>${t.failedItems||0}</td>
+      <td>${(t.startTime||'').slice(0,16)}</td>
+      <td>
+        <button class="btn btn-sm" onclick="showResults(${t.taskId})">结果</button>
+        <button class="btn btn-sm btn-red" onclick="cancelTask(${t.taskId})">取消</button>
+      </td></tr>`).join('');
+    document.getElementById('tk-list').innerHTML = rows || '<tr><td colspan="8" style="color:var(--muted)">暂无任务</td></tr>';
+  } catch(e) { document.getElementById('tk-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">加载失败: '+e.message+'</td></tr>'; }
+}
+
+function fmtTaskStatus(s) {
+  const map = { 'PENDING':'待执行','RUNNING':'执行中','DONE':'已完成','CANCELLED':'已取消','ERROR':'异常' };
+  const clr = { 'PENDING':'var(--muted)','RUNNING':'var(--yellow)','DONE':'var(--green)','CANCELLED':'var(--muted)','ERROR':'var(--red)' };
+  return `<span style="color:${clr[s]||'var(--muted)'}">${map[s]||s}</span>`;
+}
+
+async function cancelTask(id) {
+  if (!confirm('确定取消任务 #'+id+'?')) return;
+  const r = await api(GATEWAY() + '/task/' + id, { method:'DELETE' });
+  if (r.success) loadTasks(); else alert(r.error?.message||'取消失败');
+}
+
+async function showResults(taskId) {
+  const card = document.getElementById('tk-results-card');
+  card.style.display = 'block';
+  document.getElementById('tk-results-title').innerText = '(taskId=' + taskId + ')';
+  document.getElementById('tk-results').innerHTML = '<tr><td colspan="7">加载中...</td></tr>';
+  try {
+    const r = await api(GATEWAY() + '/task/' + taskId + '/results');
+    if (!r.success) { document.getElementById('tk-results').innerHTML = '<tr><td colspan="7" style="color:var(--red)">'+(r.error?.message||'失败')+'</td></tr>'; return; }
+    const rows = (r.data?.data||[]).map(rr => `<tr>
+      <td>${rr.id}</td><td>${rr.taskItemId}</td><td>${rr.templateId}</td>
+      <td>${fmtResultStatus(rr.status)}</td><td>${rr.responseStatusCode||'-'}</td>
+      <td>${rr.durationMs||'-'}ms</td><td>${rr.matchedMatcher||rr.errorMessage||'-'}</td>
+    </tr>`).join('');
+    document.getElementById('tk-results').innerHTML = rows || '<tr><td colspan="7" style="color:var(--muted)">暂无结果</td></tr>';
+  } catch(e) {
+    document.getElementById('tk-results').innerHTML = '<tr><td colspan="7" style="color:var(--red)">加载失败: '+e.message+'</td></tr>';
+  }
+}
+
+function fmtResultStatus(s) {
+  const m = {'matched':'<span style="color:var(--green)">命中</span>','not_matched':'<span style="color:var(--muted)">未命中</span>','error':'<span style="color:var(--red)">错误</span>'};
+  return m[s] || s;
 }
 
 // ── 漏洞模板 ──
