@@ -1,24 +1,36 @@
-use hawkeye;
+-- ============================================================
+-- Hawkeye Cloud — 认证服务 建表 DDL
+-- 版本：v3.0（与 vul/asset 规范统一）
+-- ============================================================
+-- 约定：
+--   主键          table_id 格式（account_id）
+--   租户          0 = 平台通用, >0 = 租户私有
+--   逻辑删除       deleted_at BIGINT UNSIGNED, 0=未删除
+--   BIGINT       全部 UNSIGNED
+--   时间          DATETIME, NOT NULL, 有默认值
+--   人            VARCHAR(64) — 直接存用户名
+-- ============================================================
 
-drop table if exists account;
-create table if not exists account
+USE hawkeye;
+
+DROP TABLE IF EXISTS `account`;
+CREATE TABLE IF NOT EXISTS `account`
 (
-    account_id  bigint primary key auto_increment comment '主键ID',
-    username    varchar(64) unique not null comment '账号名（唯一）',
-    password    varchar(64)        not null comment '密码',
-    tenant_id   bigint             not null default 1 comment '租户ID',
-    deleted     tinyint            not null default 0 comment '逻辑删除: 0-未删除, 1-已删除',
-    create_time datetime           not null default CURRENT_TIMESTAMP comment '创建时间',
-    update_time datetime           not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP comment '更新时间',
-    create_by   bigint comment '创建人ID',
-    update_by   bigint comment '更新人ID',
-    index idx_tenant (tenant_id),
-    index idx_username_tenant_del (username, tenant_id, deleted)
-) default charset = utf8mb4
-  collate = utf8mb4_unicode_ci
-    comment ='账号表';
+    `account_id`  BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
+    `username`    VARCHAR(64)       NOT NULL COMMENT '用户名',
+    `password`    VARCHAR(128)      NOT NULL COMMENT 'BCrypt 密码',
+    `tenant_id`   BIGINT UNSIGNED   NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
+    `create_time` DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `create_by`   VARCHAR(64)       NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    `update_by`   VARCHAR(64)       NOT NULL DEFAULT '' COMMENT '更新人用户名',
+    `deleted_at`  BIGINT UNSIGNED   NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
+    PRIMARY KEY (`account_id`),
+    UNIQUE KEY `uk_username_deleted` (`username`, `deleted_at`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci COMMENT = '账号表';
 
-# 密码是password
-insert into account(username, password, tenant_id, create_time, update_time)
-values ('admin', '$2a$10$gp1t.ArJv56l/aTNemMube9qdo1wHUhi5Fj2StYYhoPWK3QLg7jFS',
-        1, now(), now());
+-- 初始管理员 / 密码是 password
+INSERT INTO account(username, password, tenant_id)
+VALUES ('admin', '$2a$10$gp1t.ArJv56l/aTNemMube9qdo1wHUhi5Fj2StYYhoPWK3QLg7jFS', 0);

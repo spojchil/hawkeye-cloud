@@ -14,6 +14,8 @@ public class Account extends BaseEntity {
 
     @TableId(type = IdType.AUTO)
     private Long accountId;
+
     private String username;
+
     private String password;
 }
