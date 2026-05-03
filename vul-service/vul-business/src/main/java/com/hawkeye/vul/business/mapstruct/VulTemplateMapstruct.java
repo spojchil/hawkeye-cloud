@@ -15,5 +15,7 @@ public interface VulTemplateMapstruct {
     @Mapping(target = "references", ignore = true)
     @Mapping(target = "categories", ignore = true)
     @Mapping(target = "httpSteps", ignore = true)
+    @Mapping(target = "metadata", ignore = true)
+    @Mapping(target = "variables", ignore = true)
     VulTemplateVO.Response toResponseVO(VulTemplate entity);
 }

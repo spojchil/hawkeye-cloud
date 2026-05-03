@@ -166,7 +166,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                 msg.setAssetHost(host);
                 msg.setAssetPort(port);
                 msg.setAssetPath(path);
-                msg.setTemplateId(tpl.getTemplateId());
+                msg.setTemplateId(tpl.getYamlId());
                 msg.setFlow(tpl.getFlow());
                 msg.setVariables(tpl.getVariables());
                 msg.setHttpSteps(toHttpSteps(tpl.getHttpSteps()));

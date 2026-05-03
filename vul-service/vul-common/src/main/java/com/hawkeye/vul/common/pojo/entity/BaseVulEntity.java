@@ -23,10 +23,10 @@ public class BaseVulEntity implements Serializable {
     private LocalDateTime updateTime;
 
     @TableField(fill = FieldFill.INSERT)
-    private Long createBy;
+    private String createBy;
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
-    private Long updateBy;
+    private String updateBy;
 
     @TableField(fill = FieldFill.INSERT)
     private Long deletedAt;

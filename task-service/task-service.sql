@@ -22,8 +22,8 @@ create table if not exists task
     deleted         tinyint        not null default 0 comment '逻辑删除: 0-未删除, 1-已删除',
     create_time     datetime       not null default CURRENT_TIMESTAMP comment '创建时间',
     update_time     datetime       not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP comment '更新时间',
-    create_by       bigint comment '创建人ID',
-    update_by       bigint comment '更新人ID',
+    create_by   VARCHAR(64) NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    update_by   VARCHAR(64) NOT NULL DEFAULT '' COMMENT '更新人用户名',
 
     index idx_tenant_status (tenant_id, status),
     index idx_tenant_name (tenant_id, task_name(100)),
@@ -47,8 +47,8 @@ create table if not exists task_item
     deleted    tinyint not null default 0 comment '逻辑删除: 0-未删除, 1-已删除',
     create_time datetime not null default CURRENT_TIMESTAMP comment '创建时间',
     update_time datetime not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP comment '更新时间',
-    create_by  bigint comment '创建人ID',
-    update_by  bigint comment '更新人ID',
+    create_by  VARCHAR(64) NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    update_by  VARCHAR(64) NOT NULL DEFAULT '' COMMENT '更新人用户名',
 
     unique index uk_task_asset_vul (task_id, asset_id, vul_id),
     index idx_task (task_id),
