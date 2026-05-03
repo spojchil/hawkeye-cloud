@@ -116,6 +116,7 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
       <th>ID</th><th>yamlId</th><th>名称</th><th>严重程度</th><th>CVE</th><th>标签</th><th>分类</th><th>操作</th>
     </tr></thead>
     <tbody id="v-list"></tbody></table>
+    <div id="v-pager" style="margin-top:12px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px"></div>
   </div>
 
   <!-- ======================== 资产面板 ======================== -->
@@ -184,6 +185,7 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
 <script>
 // ── 全局状态 ──
 let TOKEN = '';
+let VUL_PAGE = 1, VUL_TOTAL = 0, VUL_SIZE = 20;
 let GATEWAY = () => document.getElementById('s-gateway').value;
 
 // ── 导航 ──
@@ -235,24 +237,25 @@ async function doLogin() {
 
 // ── 漏洞模板 ──
 async function loadVul(page) {
+  VUL_PAGE = page || 1; VUL_SIZE = Number(document.getElementById('v-size').value);
   const params = new URLSearchParams();
   const name = document.getElementById('v-name').value;
   const sev = document.getElementById('v-severity').value;
   const tag = document.getElementById('v-tag').value;
-  const size = document.getElementById('v-size').value;
   if (name) params.set('name', name);
   if (sev) params.set('severity', sev);
   if (tag) params.set('tag', tag);
-  params.set('pageSize', size);
-  params.set('page', page || 1);
+  params.set('pageSize', VUL_SIZE);
+  params.set('page', VUL_PAGE);
   try {
     const r = await api(GATEWAY() + '/vul?' + params);
     if (!r.success) {
       document.getElementById('v-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">' + (r.error?.message||'失败') + '</td></tr>';
+      document.getElementById('v-pager').innerHTML = '';
       return;
     }
     const records = r.data?.data || [];
-    const total = r.data?.total || 0;
+    VUL_TOTAL = r.data?.total || 0;
     const rows = records.map(t => `<tr>
       <td>${t.templateId}</td><td>${t.yamlId||'-'}</td><td>${(t.name||'').slice(0,40)}</td>
       <td>${fmtSeverity(t.severity)}</td><td>${t.cveId||'-'}</td>
@@ -263,9 +266,21 @@ async function loadVul(page) {
       </td>
     </tr>`).join('');
     document.getElementById('v-list').innerHTML = rows || '<tr><td colspan="8" style="color:var(--muted)">无结果</td></tr>';
+    renderVulPager();
   } catch(e) {
     document.getElementById('v-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">加载失败: ' + e.message + '</td></tr>';
+    document.getElementById('v-pager').innerHTML = '';
   }
+}
+
+function renderVulPager() {
+  const totalPages = Math.ceil(VUL_TOTAL / VUL_SIZE) || 1;
+  let html = `<span>共 ${VUL_TOTAL} 条，第 ${VUL_PAGE}/${totalPages} 页</span>`;
+  html += ` <button class="btn btn-sm" onclick="loadVul(1)" ${VUL_PAGE===1?'disabled':''}>首页</button>`;
+  html += ` <button class="btn btn-sm" onclick="loadVul(${VUL_PAGE-1})" ${VUL_PAGE===1?'disabled':''}>上一页</button>`;
+  html += ` <button class="btn btn-sm" onclick="loadVul(${VUL_PAGE+1})" ${VUL_PAGE===totalPages?'disabled':''}>下一页</button>`;
+  html += ` <button class="btn btn-sm" onclick="loadVul(${totalPages})" ${VUL_PAGE===totalPages?'disabled':''}>末页</button>`;
+  document.getElementById('v-pager').innerHTML = html;
 }
 
 async function importVul() {
