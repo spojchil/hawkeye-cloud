@@ -46,8 +46,7 @@ public class DetectionEngine {
         DetectionResult result = new DetectionResult();
         result.setTaskId(msg.getTaskId());
         result.setTaskItemId(msg.getItemId());
-        result.setTemplateId(msg.getTemplateId() != null
-                ? (long) msg.getTemplateId().hashCode() : null);
+        result.setTemplateId(msg.getTemplateDbId());
 
         try {
             if (msg.getHttpSteps() == null || msg.getHttpSteps().isEmpty()) {

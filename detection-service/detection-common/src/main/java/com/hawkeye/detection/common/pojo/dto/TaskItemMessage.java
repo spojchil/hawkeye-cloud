@@ -33,6 +33,7 @@ public class TaskItemMessage implements Serializable {
 
     // ── 模板检测配置 ──
     private String templateId;          // YAML 业务 ID（日志追溯）
+    private Long templateDbId;          // vul_template.template_id（DB 主键）
     private String flow;                // 执行流表达式，null=单步
     private Map<String, Object> variables;   // 模板级动态变量
     private List<HttpStep> httpSteps;   // HTTP 请求步骤
