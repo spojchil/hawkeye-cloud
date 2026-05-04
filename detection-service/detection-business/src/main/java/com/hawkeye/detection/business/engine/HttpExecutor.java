@@ -13,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import javax.net.ssl.SSLException;
 
 /**
  * HTTP 请求执行器。
@@ -84,7 +85,19 @@ public class HttpExecutor {
 
             long start = System.currentTimeMillis();
             HttpRequest request = builder.build();
-            HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response;
+            try {
+                response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            } catch (SSLException e) {
+                // HTTPS 失败，尝试 HTTP 降级
+                if (uri.getScheme() != null && uri.getScheme().equalsIgnoreCase("https")) {
+                    log.warn("HTTPS 请求失败，尝试 HTTP 降级: {}", e.getMessage());
+                    URI httpUri = buildHttpUri(uri);
+                    response = sendRequest(httpUri, method, bodyPublisher, config, resolver);
+                } else {
+                    throw e;
+                }
+            }
             long duration = System.currentTimeMillis() - start;
 
             lastResponse = new HttpResponseContext();
@@ -204,5 +217,38 @@ public class HttpExecutor {
         ctx.setContentLength(response.body() != null ? response.body().length() : 0);
         ctx.setDurationMs(duration);
         return ctx;
+    }
+
+    /**
+     * 将 HTTPS URI 转换为 HTTP URI。
+     */
+    private URI buildHttpUri(URI httpsUri) {
+        try {
+            return new URI("http", httpsUri.getUserInfo(), httpsUri.getHost(), httpsUri.getPort(),
+                    httpsUri.getPath(), httpsUri.getQuery(), httpsUri.getFragment());
+        } catch (Exception e) {
+            // 如果转换失败，返回原始 URI
+            return httpsUri;
+        }
+    }
+
+    /**
+     * 发送 HTTP 请求（带请求头）。
+     */
+    private HttpResponse<String> sendRequest(URI uri, String method, HttpRequest.BodyPublisher bodyPublisher,
+                                              HttpRequestConfig config, VariableContext resolver) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(uri)
+                .timeout(REQUEST_TIMEOUT)
+                .method(method, bodyPublisher);
+
+        // 设置请求头
+        if (config.getHeaders() != null) {
+            for (Map.Entry<String, String> entry : config.getHeaders().entrySet()) {
+                builder.header(entry.getKey(), resolver.resolve(entry.getValue()));
+            }
+        }
+
+        return CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 }
