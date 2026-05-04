@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 供检测服务回写
+ * 检测项 VO（供检测服务回写）。
  */
 public class TaskItemVO {
 
@@ -19,17 +19,11 @@ public class TaskItemVO {
 
     @Data
     public static class Response {
-
         private Long itemId;
-
         private Long taskId;
-
         private Long assetId;
-
         private Long vulId;
-
         private TaskItemStatusEnum status;
-
         private String result;
     }
 }

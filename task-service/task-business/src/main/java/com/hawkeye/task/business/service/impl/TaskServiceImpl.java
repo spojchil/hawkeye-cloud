@@ -42,6 +42,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * 任务服务实现。
+ * <p>
+ * 核心职责：创建任务 → 异步拆分 → 投递 MQ → 轮询进度
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -58,25 +63,32 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     private final DetectionResultMapper detectionResultMapper;
     private final TaskItemPreChecker preChecker;
 
+    // ── 创建任务 ──────────────────────────────────────────────────────
+
     @LogExecutionTime("创建任务")
     @Override
     @Transactional
     public TaskVO.Response create(TaskVO.Request request) {
+        // 1. 构建任务实体
         Task task = taskMapstruct.toEntity(request);
         task.setStatus(TaskStatusEnum.PENDING);
         task.setTotalItems(0);
         task.setCompletedItems(0);
         task.setFailedItems(0);
-        if (task.getPriority() == null) {
-            task.setPriority(1);
-        }
+        if (task.getPriority() == null) task.setPriority(1);
+
+        // 2. 持久化
         save(task);
 
+        // 3. 异步拆分+投递（新线程）
         splitAndDispatch(task, request.getAssetIds(), request.getTemplateIds());
 
         return taskMapstruct.toResponseVO(task);
     }
 
+    // ── 异步拆分 ──────────────────────────────────────────────────────
+
+    /** 异步执行拆分，失败时标记任务为 ERROR */
     @Async("taskSplitExecutor")
     public void splitAndDispatch(Task task, List<Long> assetIds, List<Long> templateIds) {
         try {
@@ -87,40 +99,48 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         }
     }
 
+    /** 拆分核心逻辑：获取模板 → 获取资产 → 预检 → 批量插入 → 投递 MQ */
     @Transactional
     protected void doSplitAndDispatch(Task task, List<Long> assetIds, List<Long> templateIds) {
+        // 更新状态为执行中
         task.setStatus(TaskStatusEnum.RUNNING);
         task.setStartTime(LocalDateTime.now());
         updateById(task);
 
+        // 批量获取模板配置（带缓存）
         Map<Long, TemplateDetectConfig> templates = templateCache.batchGet(templateIds);
         if (templates.isEmpty()) {
             throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(), "无有效模板",
                     HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
         }
 
+        // 批量获取资产信息
         Map<Long, AssetBrief> assets = fetchAssetsWithLog(assetIds);
         if (assets.isEmpty()) {
             throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(), "无有效资产",
                     HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
         }
 
+        // 构建检测项（含预检）
         List<TaskItem> validItems = buildTaskItems(task, assetIds, templateIds, assets, templates);
-
         if (validItems.isEmpty()) {
             throw new ApiException(CommonErrorCode.PARAM_INVALID.getCode(), "预检后无有效检测项",
                     HttpStatus.valueOf(CommonErrorCode.PARAM_INVALID.getHttpCode()));
         }
 
+        // 批量插入检测项
         batchInsertTaskItems(validItems);
-
         task.setTotalItems(validItems.size());
         updateById(task);
 
+        // 构建并发送 MQ 消息
         List<TaskItemMessage> messages = buildMessages(task, validItems, assets, templates);
         taskProducerService.sendBatch(messages, this::markItemFailed);
     }
 
+    // ── 批量操作 ──────────────────────────────────────────────────────
+
+    /** 分批插入检测项 */
     private void batchInsertTaskItems(List<TaskItem> items) {
         for (int i = 0; i < items.size(); i += BATCH_INSERT_SIZE) {
             int end = Math.min(i + BATCH_INSERT_SIZE, items.size());
@@ -131,6 +151,9 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         }
     }
 
+    // ── 资产获取 ──────────────────────────────────────────────────────
+
+    /** 批量获取资产，失败的资产记录日志但不中断 */
     private Map<Long, AssetBrief> fetchAssetsWithLog(List<Long> assetIds) {
         Map<Long, AssetBrief> assets = new LinkedHashMap<>();
         List<Long> failedIds = new ArrayList<>();
@@ -152,10 +175,12 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         if (!failedIds.isEmpty()) {
             log.warn("部分资产拉取失败: {}", failedIds);
         }
-
         return assets;
     }
 
+    // ── 检测项构建 ────────────────────────────────────────────────────
+
+    /** 构建检测项列表，预检过滤无效项 */
     private List<TaskItem> buildTaskItems(Task task, List<Long> assetIds, List<Long> templateIds,
                                           Map<Long, AssetBrief> assets,
                                           Map<Long, TemplateDetectConfig> templates) {
@@ -170,7 +195,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                 TemplateDetectConfig tpl = templates.get(templateId);
                 if (tpl == null) continue;
 
-                // 预检：过滤掉不支持的模板（如使用 payloads 的模板）
+                // 预检：过滤 payloads、OAST 等不支持的模板
                 if (!preChecker.preCheck(asset, tpl)) {
                     skippedCount++;
                     continue;
@@ -186,12 +211,14 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         }
 
         if (skippedCount > 0) {
-            log.info("预检剔除 {} 个无效检测项（可能包含payloads模板）", skippedCount);
+            log.info("预检剔除 {} 个无效检测项", skippedCount);
         }
-
         return items;
     }
 
+    // ── 消息构建 ──────────────────────────────────────────────────────
+
+    /** 构建 MQ 消息列表 */
     private List<TaskItemMessage> buildMessages(Task task, List<TaskItem> items,
                                                 Map<Long, AssetBrief> assets,
                                                 Map<Long, TemplateDetectConfig> templates) {
@@ -205,15 +232,18 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             if (asset == null || tpl == null) continue;
 
             TaskItemMessage msg = new TaskItemMessage();
+            // 任务标识
             msg.setTaskId(task.getTaskId());
             msg.setItemId(item.getItemId());
             msg.setAssetId(item.getAssetId());
             msg.setTenantId(tenantId);
             msg.setCreatedAt(now);
+            // 资产信息
             msg.setAssetProtocol(asset.getRequestProtocol());
             msg.setAssetHost(asset.getRequestHost());
             msg.setAssetPort(asset.getRequestPort());
             msg.setAssetPath(asset.getRequestPath() != null ? asset.getRequestPath() : "/");
+            // 模板配置
             msg.setTemplateId(tpl.getYamlId());
             msg.setTemplateDbId(item.getVulId());
             msg.setFlow(tpl.getFlow());
@@ -221,10 +251,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             msg.setHttpSteps(toHttpSteps(tpl.getHttpSteps()));
             messages.add(msg);
         }
-
         return messages;
     }
 
+    /** 转换 HTTP 步骤配置为消息格式 */
     private List<TaskItemMessage.HttpStep> toHttpSteps(List<TemplateDetectConfig.HttpStepConfig> steps) {
         if (steps == null) return null;
 
@@ -239,6 +269,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             hs.setAttack(s.getAttack());
             hs.setMatchersCondition(s.getMatchersCondition());
 
+            // 转换匹配器
             if (s.getMatchers() != null) {
                 hs.setMatchers(s.getMatchers().stream().map(m -> {
                     TaskItemMessage.Matcher hm = new TaskItemMessage.Matcher();
@@ -252,6 +283,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                 }).toList());
             }
 
+            // 转换提取器
             if (s.getExtractors() != null) {
                 hs.setExtractors(s.getExtractors().stream().map(e -> {
                     TaskItemMessage.Extractor he = new TaskItemMessage.Extractor();
@@ -264,23 +296,28 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                     return he;
                 }).toList());
             }
-
             return hs;
         }).toList();
     }
 
+    // ── 状态标记 ──────────────────────────────────────────────────────
+
+    /** 标记任务为异常状态 */
     private void markTaskError(Task task, String message) {
         task.setStatus(TaskStatusEnum.ERROR);
         task.setResultSummary("{\"error\":\"" + message + "\"}");
         updateById(task);
     }
 
+    /** 标记检测项为失败状态（MQ 发送失败回调） */
     private void markItemFailed(Long itemId) {
         taskItemMapper.update(null,
                 new LambdaUpdateWrapper<TaskItem>()
                         .eq(TaskItem::getItemId, itemId)
                         .set(TaskItem::getStatus, TaskItemStatusEnum.FAILED));
     }
+
+    // ── 查询接口 ──────────────────────────────────────────────────────
 
     @LogExecutionTime("查询任务详情")
     @Override
@@ -315,6 +352,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     @Transactional
     public void cancel(Long taskId) {
+        // 原子更新：只有 PENDING 状态才能取消
         boolean updated = lambdaUpdate()
                 .eq(Task::getTaskId, taskId)
                 .eq(Task::getDeletedAt, 0L)
@@ -370,6 +408,9 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return ListResult.result((int) result.getTotal(), vos);
     }
 
+    // ── 工具方法 ──────────────────────────────────────────────────────
+
+    /** 转换检测结果为 VO */
     private TaskResultVO toTaskResultVO(DetectionResult r) {
         TaskResultVO vo = new TaskResultVO();
         vo.setId(r.getResultId());
@@ -388,6 +429,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return vo;
     }
 
+    /** 获取任务或抛出异常 */
     private Task getTaskOrThrow(Long taskId) {
         Task task = baseMapper.selectOne(
                 new LambdaQueryWrapper<Task>()
@@ -400,11 +442,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return task;
     }
 
+    /** 解析租户ID，无效时返回 0 */
     private static Long parseTenantId() {
         String tid = RequestContext.getHeader(HeaderConstants.HEADER_TENANT_ID);
-        if (tid == null || tid.isBlank()) {
-            return 0L;
-        }
+        if (tid == null || tid.isBlank()) return 0L;
         try {
             return Long.parseLong(tid);
         } catch (NumberFormatException e) {
