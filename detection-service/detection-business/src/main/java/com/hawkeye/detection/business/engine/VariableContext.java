@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 
 /**
  * 变量上下文 — 分层变量解析。
+ * <p>
  * 优先级：Extractor 提取变量 > 模板级 variables > Asset 占位符 > 随机函数
  */
 public class VariableContext {
@@ -27,14 +28,21 @@ public class VariableContext {
         this.templateVars = msg.getVariables() != null ? new HashMap<>(msg.getVariables()) : Map.of();
         String protocol = msg.getAssetProtocol() != null ? msg.getAssetProtocol() : "https";
         String host = msg.getAssetHost() != null ? msg.getAssetHost() : "";
-        int port = msg.getAssetPort() != null ? msg.getAssetPort() : 443;
+        int port = msg.getAssetPort() != null ? msg.getAssetPort() : ("https".equals(protocol) ? 443 : 80);
         String path = msg.getAssetPath() != null ? msg.getAssetPath() : "/";
-        this.baseURL = protocol + "://" + host + (port == 443 || port == 80 ? "" : ":" + port);
+
+        boolean isDefaultPort = ("http".equals(protocol) && port == 80) ||
+                               ("https".equals(protocol) && port == 443);
+        String portStr = isDefaultPort ? "" : ":" + port;
+
+        this.baseURL = protocol + "://" + host + portStr;
         this.hostname = host;
-        this.rootURL = protocol + "://" + host + (port == 443 || port == 80 ? "" : ":" + port) + "/";
+        this.rootURL = protocol + "://" + host + portStr + "/";
     }
 
-    public void set(String key, Object value) { extractorVars.put(key, value); }
+    public void set(String key, Object value) {
+        extractorVars.put(key, value);
+    }
 
     public Object get(String key) {
         Object v = extractorVars.get(key);
@@ -44,7 +52,9 @@ public class VariableContext {
         return null;
     }
 
-    /** 解析模板中的 {{...}} 占位符 */
+    /**
+     * 解析模板中的 {{...}} 占位符。
+     */
     public String resolve(String template) {
         if (template == null) return null;
         Matcher m = VAR.matcher(template);
@@ -109,7 +119,9 @@ public class VariableContext {
         }
     }
 
-    /** 当前步响应后同步运行时变量 */
+    /**
+     * 当前步响应后同步运行时变量。
+     */
     public void updateFrom(HttpResponseContext ctx) {
         set("body", ctx.getBody() != null ? ctx.getBody() : "");
         set("status_code", ctx.getStatusCode());

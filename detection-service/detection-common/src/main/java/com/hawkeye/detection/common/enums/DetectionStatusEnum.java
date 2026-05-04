@@ -1,21 +1,36 @@
 package com.hawkeye.detection.common.enums;
 
+import lombok.Getter;
+
 /**
- * 检测结果状态枚举（v2）。
- * 数据库存 VARCHAR，值域：matched / not_matched / error。
+ * 检测结果状态枚举。
+ * <p>
+ * 数据库存 VARCHAR，值域：matched / not_matched / error
  */
+@Getter
 public enum DetectionStatusEnum {
-    MATCHED("命中"),
-    NOT_MATCHED("未命中"),
-    ERROR("错误");
 
-    private final String desc;
+    MATCHED("matched", "命中"),
+    NOT_MATCHED("not_matched", "未命中"),
+    ERROR("error", "错误");
 
-    DetectionStatusEnum(String desc) {
-        this.desc = desc;
+    private final String value;
+    private final String description;
+
+    DetectionStatusEnum(String value, String description) {
+        this.value = value;
+        this.description = description;
     }
 
-    public String getDesc() {
-        return this.desc;
+    /**
+     * 根据 value 查找枚举。
+     */
+    public static DetectionStatusEnum fromValue(String value) {
+        for (DetectionStatusEnum status : values()) {
+            if (status.value.equals(value)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("未知的检测状态: " + value);
     }
 }

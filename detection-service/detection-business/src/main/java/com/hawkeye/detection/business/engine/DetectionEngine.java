@@ -5,6 +5,7 @@ import com.hawkeye.detection.business.engine.model.HttpRequestConfig;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
 import com.hawkeye.detection.business.engine.model.ExtractorDef;
 import com.hawkeye.detection.business.engine.model.MatcherDef;
+import com.hawkeye.detection.common.enums.DetectionStatusEnum;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage.HttpStep;
 import com.hawkeye.detection.common.pojo.entity.DetectionResult;
@@ -44,6 +45,8 @@ public class DetectionEngine {
         result.setTaskId(msg.getTaskId());
         result.setTaskItemId(msg.getItemId());
         result.setTemplateId(msg.getTemplateDbId());
+        result.setAssetId(msg.getAssetId());
+        result.setTenantId(msg.getTenantId());
 
         try {
             if (msg.getHttpSteps() == null || msg.getHttpSteps().isEmpty()) {
@@ -55,15 +58,22 @@ public class DetectionEngine {
             boolean matched = flowInterpreter.execute(msg.getHttpSteps(), msg.getFlow(),
                     step -> executeStep(step, vars));
 
-            result.setStatus(matched ? "matched" : "not_matched");
+            result.setStatus(matched ? DetectionStatusEnum.MATCHED.getValue() : DetectionStatusEnum.NOT_MATCHED.getValue());
             Object dur = vars.get("duration");
             result.setDurationMs(dur instanceof Long d ? d.intValue() : 0);
             if (matched) result.setMatchedAt(LocalDateTime.now());
             resultWriter.write(result);
 
         } catch (Exception e) {
-            log.error("检测异常 taskId={} itemId={}", msg.getTaskId(), msg.getItemId(), e);
-            writeError(result, e.getMessage() != null ? e.getMessage() : "内部错误");
+            // 检查是否是被中断的情况
+            if (e instanceof RuntimeException && e.getCause() instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                log.warn("检测被中断 taskId={} itemId={}", msg.getTaskId(), msg.getItemId());
+                writeError(result, "检测被中断");
+            } else {
+                log.error("检测异常 taskId={} itemId={}", msg.getTaskId(), msg.getItemId(), e);
+                writeError(result, e.getMessage() != null ? e.getMessage() : "内部错误");
+            }
         }
     }
 
@@ -82,7 +92,10 @@ public class DetectionEngine {
             } else {
                 ctx = httpExecutor.execute(config, vars);
             }
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
 
@@ -136,7 +149,7 @@ public class DetectionEngine {
     }
 
     private void writeError(DetectionResult result, String msg) {
-        result.setStatus("error");
+        result.setStatus(DetectionStatusEnum.ERROR.getValue());
         result.setErrorMessage(msg);
         resultWriter.write(result);
     }

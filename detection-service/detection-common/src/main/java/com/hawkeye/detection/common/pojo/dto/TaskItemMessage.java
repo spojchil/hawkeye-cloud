@@ -22,6 +22,7 @@ public class TaskItemMessage implements Serializable {
     // ── 任务标识 ──
     private Long taskId;
     private Long itemId;
+    private Long assetId;
     private Long tenantId;
     private Long createdAt;
 

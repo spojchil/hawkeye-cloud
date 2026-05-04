@@ -2,6 +2,7 @@ package com.hawkeye.detection.business.engine;
 
 import com.hawkeye.detection.business.mapper.DetectionResultMapper;
 import com.hawkeye.detection.common.pojo.entity.DetectionResult;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -11,18 +12,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 检测结果批量写入器 — v3。
- * ConcurrentLinkedQueue 替代 synchronized + ArrayList。
- * saveBatch 替代循环单条 insert。
+ * 检测结果批量写入器。
+ * <p>
+ * 设计要点：
+ * 1. 使用 ConcurrentLinkedQueue 替代 synchronized + ArrayList
+ * 2. 使用 AtomicInteger 计数器（ConcurrentLinkedQueue.size() 是 O(n)）
+ * 3. @PreDestroy 钩子确保应用关闭时数据不丢失
+ * 4. flush 方法使用 synchronized 防止并发写入
  */
 @Slf4j
 @Component
 public class ResultWriter {
 
     private static final int FLUSH_SIZE = 500;
+
     private final Queue<DetectionResult> buffer = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger counter = new AtomicInteger(0);
 
     private final DetectionResultMapper mapper;
     private final StringRedisTemplate redisTemplate;
@@ -32,26 +40,77 @@ public class ResultWriter {
         this.redisTemplate = redisTemplate;
     }
 
+    /**
+     * 写入单条检测结果。
+     * <p>
+     * 先写入本地缓冲区，同时更新 Redis 计数。
+     * 当缓冲区达到阈值时触发批量写入。
+     */
     public void write(DetectionResult result) {
         buffer.add(result);
-        redisTemplate.opsForValue().increment(
-                "task:" + result.getTaskId() + ":" + result.getStatus());
-        if (buffer.size() >= FLUSH_SIZE) flush();
+        int count = counter.incrementAndGet();
+
+        // 更新 Redis 计数
+        try {
+            redisTemplate.opsForValue().increment(
+                    "task:" + result.getTaskId() + ":" + result.getStatus());
+        } catch (Exception e) {
+            log.warn("Redis INCR 失败 taskId={}: {}", result.getTaskId(), e.getMessage());
+        }
+
+        // 达到阈值时触发写入
+        if (count >= FLUSH_SIZE) {
+            flush();
+        }
     }
 
+    /**
+     * 定时刷新（每 5 秒）。
+     */
     @Scheduled(fixedDelay = 5000)
-    public void flushByTimeout() { flush(); }
+    public void flushByTimeout() {
+        flush();
+    }
 
-    private void flush() {
-        List<DetectionResult> batch = new ArrayList<>();
-        for (int i = 0; i < FLUSH_SIZE; i++) {
+    /**
+     * 批量写入数据库。
+     * <p>
+     * 使用 synchronized 防止多个线程同时写入。
+     */
+    private synchronized void flush() {
+        int count = Math.min(counter.get(), FLUSH_SIZE);
+        if (count == 0) return;
+
+        List<DetectionResult> batch = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
             DetectionResult r = buffer.poll();
             if (r == null) break;
             batch.add(r);
         }
+
         if (!batch.isEmpty()) {
-            mapper.insert(batch);
-            log.debug("批量写入 {} 条检测结果", batch.size());
+            counter.addAndGet(-batch.size());
+            try {
+                mapper.insert(batch);
+                log.debug("批量写入 {} 条检测结果", batch.size());
+            } catch (Exception e) {
+                log.error("批量写入检测结果失败: {}", e.getMessage(), e);
+                // 写入失败，将数据放回缓冲区
+                buffer.addAll(batch);
+                counter.addAndGet(batch.size());
+            }
+        }
+    }
+
+    /**
+     * 应用关闭时刷入剩余数据。
+     */
+    @PreDestroy
+    public void onDestroy() {
+        int remaining = counter.get();
+        if (remaining > 0) {
+            log.info("应用关闭，刷入剩余 {} 条数据", remaining);
+            flush();
         }
     }
 }
