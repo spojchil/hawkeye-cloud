@@ -15,16 +15,16 @@ public class ExtractorPipeline {
     }
 
     /**
-     * 对一组提取器执行提取，结果写入 VariableResolver。
+     * 对一组提取器执行提取，结果写入 VariableContext。
      */
-    public void extract(HttpResponseContext ctx, List<ExtractorDef> defs, VariableResolver vars) {
+    public void extract(HttpResponseContext ctx, List<ExtractorDef> defs, VariableContext vars) {
         if (defs == null) return;
         for (ExtractorDef def : defs) {
             if (def.getName() == null) continue;
             var e = registry.get(def.getType());
             String value = e.extract(ctx, def);
             if (value != null) {
-                vars.put(def.getName(), value);
+                vars.set(def.getName(), value);
             }
         }
     }

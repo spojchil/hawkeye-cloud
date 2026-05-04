@@ -11,6 +11,7 @@ import com.hawkeye.detection.common.pojo.entity.DetectionResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -75,10 +76,14 @@ public class DetectionEngine {
         config.setRaw(step.getRaw());
 
         HttpResponseContext ctx;
-        if (config.getRaw() != null && !config.getRaw().isBlank()) {
-            ctx = httpExecutor.executeRaw(config.getRaw(), vars);
-        } else {
-            ctx = httpExecutor.execute(config, vars);
+        try {
+            if (config.getRaw() != null && !config.getRaw().isBlank()) {
+                ctx = httpExecutor.executeRaw(config.getRaw(), vars);
+            } else {
+                ctx = httpExecutor.execute(config, vars);
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
         }
 
         vars.updateFrom(ctx);

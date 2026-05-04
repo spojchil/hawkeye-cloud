@@ -39,7 +39,7 @@ public class HttpExecutor {
      * @param config   请求配置（已替换变量）
      * @param resolver 变量解析器（用于多路径替换后逐个尝试）
      */
-    public HttpResponseContext execute(HttpRequestConfig config, VariableResolver resolver) throws IOException, InterruptedException {
+    public HttpResponseContext execute(HttpRequestConfig config, VariableContext resolver) throws IOException, InterruptedException {
         List<String> paths = config.getPaths();
         if (paths == null || paths.isEmpty()) {
             paths = List.of("/");
@@ -107,7 +107,7 @@ public class HttpExecutor {
      * 执行原始 HTTP 文本请求。
      * 解析 raw 文本（如 "GET /path HTTP/1.1\nHost: xxx"），构建并发送。
      */
-    public HttpResponseContext executeRaw(String raw, VariableResolver resolver) throws IOException, InterruptedException {
+    public HttpResponseContext executeRaw(String raw, VariableContext resolver) throws IOException, InterruptedException {
         String resolved = resolver.resolve(raw);
         String[] lines = resolved.split("\\r?\\n");
         if (lines.length == 0) throw new IOException("Empty raw request");
