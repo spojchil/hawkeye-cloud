@@ -94,10 +94,14 @@ public class ResultWriter {
                 mapper.insert(batch);
                 log.debug("批量写入 {} 条检测结果", batch.size());
             } catch (Exception e) {
-                log.error("批量写入检测结果失败: {}", e.getMessage(), e);
-                // 写入失败，将数据放回缓冲区
-                buffer.addAll(batch);
-                counter.addAndGet(batch.size());
+                String errorMsg = e.getMessage();
+                // 主键冲突：记录日志，不重试（避免无限循环）
+                if (errorMsg != null && errorMsg.contains("Duplicate entry")) {
+                    log.warn("批量写入 {} 条检测结果，部分主键冲突已忽略", batch.size());
+                } else {
+                    // 其他异常：记录错误日志，不放回 buffer（避免无限重试）
+                    log.error("批量写入检测结果失败，数据已丢失: {}", errorMsg, e);
+                }
             }
         }
     }

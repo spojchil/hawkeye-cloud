@@ -42,13 +42,7 @@ public class HttpExecutor {
     public HttpResponseContext execute(HttpRequestConfig config, VariableContext resolver) throws IOException, InterruptedException {
         List<String> paths = config.getPaths();
         if (paths == null || paths.isEmpty()) {
-            // 如果没有 path，尝试使用 BaseURL 构建默认路径
-            String baseURL = resolver.resolve("{{BaseURL}}");
-            if (baseURL != null && !baseURL.equals("{{BaseURL}}")) {
-                paths = List.of(baseURL);
-            } else {
-                throw new IOException("模板缺少 path 定义，且无法构建 BaseURL");
-            }
+            paths = List.of("/");
         }
 
         // 逐个尝试 path 列表中的路径（模板中 path 是数组，可能定义多个候选 URL）
@@ -123,37 +117,73 @@ public class HttpExecutor {
         String method = requestLine[0];
         String path = requestLine.length > 1 ? requestLine[1] : "/";
 
-        // 解析后续的 Header 行（直到空行）
-        String uriPath = resolver.resolve(path);
+        // 解析 Host 头（用于构建完整 URI）
+        String host = null;
+        int bodyStartIndex = 1;
+        for (int i = 1; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.isEmpty()) {
+                bodyStartIndex = i + 1;
+                break;
+
+            }
+            if (line.toLowerCase().startsWith("host:")) {
+                host = line.substring(5).trim();
+            }
+        }
+
+        // 构建完整 URI
+        // 如果没有 Host 头，使用 VariableContext 中的 BaseURL
+        String fullUri;
+        if (host != null && !host.isEmpty()) {
+            fullUri = "http://" + host + path;
+        } else {
+            // 从 VariableContext 获取 BaseURL
+            String baseURL = (String) resolver.get("BaseURL");
+            if (baseURL != null && !baseURL.isEmpty()) {
+                fullUri = baseURL + path;
+            } else {
+                fullUri = "http://localhost" + path;
+            }
+        }
+
         URI rawUri;
         try {
-            rawUri = URI.create(uriPath);
+            rawUri = URI.create(fullUri);
         } catch (IllegalArgumentException e) {
             try {
-                rawUri = new URI(null, null,
-                        java.net.URLEncoder.encode(uriPath, java.nio.charset.StandardCharsets.UTF_8),
+                // 尝试编码路径部分
+                URI base = URI.create(fullUri.substring(0, fullUri.indexOf(path)));
+                rawUri = new URI(base.getScheme(), base.getHost(), 
+                        java.net.URLEncoder.encode(path, java.nio.charset.StandardCharsets.UTF_8), 
                         null);
             } catch (Exception ex) {
-                throw new IOException("无法构建 URI: " + uriPath, ex);
+                throw new IOException("无法构建 URI: " + fullUri, ex);
             }
         }
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(rawUri)
                 .timeout(REQUEST_TIMEOUT);
 
+        // 解析 Header 行
         int i = 1;
         for (; i < lines.length; i++) {
             String line = lines[i].trim();
             if (line.isEmpty()) break;  // 空行 = Header 结束
             int colon = line.indexOf(':');
             if (colon > 0) {
-                builder.header(line.substring(0, colon).trim(), line.substring(colon + 1).trim());
+                String headerName = line.substring(0, colon).trim();
+                String headerValue = line.substring(colon + 1).trim();
+                // 跳过 Host 头（Java HttpClient 会自动设置）
+                if (!headerName.equalsIgnoreCase("Host")) {
+                    builder.header(headerName, headerValue);
+                }
             }
         }
 
         // 空行之后是 Body
         StringBuilder body = new StringBuilder();
-        for (i = i + 1; i < lines.length; i++) {
+        for (i = bodyStartIndex; i < lines.length; i++) {
             if (body.length() > 0) body.append("\n");
             body.append(lines[i]);
         }

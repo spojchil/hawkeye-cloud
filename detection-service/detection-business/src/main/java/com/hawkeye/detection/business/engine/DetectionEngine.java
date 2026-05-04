@@ -85,6 +85,10 @@ public class DetectionEngine {
         config.setBody(step.getBody());
         config.setRaw(step.getRaw());
 
+        log.debug("executeStep: method={}, paths={}, raw={}", 
+                config.getMethod(), config.getPaths(), 
+                config.getRaw() != null ? config.getRaw().substring(0, Math.min(50, config.getRaw().length())) + "..." : "null");
+
         HttpResponseContext ctx;
         try {
             if (config.getRaw() != null && !config.getRaw().isBlank()) {
