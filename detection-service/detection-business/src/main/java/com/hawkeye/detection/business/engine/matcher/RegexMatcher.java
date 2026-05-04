@@ -24,7 +24,7 @@ public class RegexMatcher extends AbstractMatcher {
 
     @Override
     public boolean match(HttpResponseContext ctx, MatcherDef def) {
-        String target = WordMatcher.part(ctx, def.getPart());
+        String target = part(ctx, def.getPart());
         if (target == null) return false;
 
         return evaluateInner(def.getRegex(), def.getCondition(), rule -> {

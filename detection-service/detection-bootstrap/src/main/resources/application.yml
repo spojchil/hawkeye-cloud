@@ -46,7 +46,6 @@ rocketmq:
     group: task_item_consumer_group
     topic: task_item_topic
     pull-batch-size: 32
-    max-reconsume-times: 16
 
 server:
   port: ${SERVER_PORT:8006}
