@@ -47,6 +47,7 @@ button.btn {
 button.btn:hover { opacity: 0.9; }
 button.btn-sm { padding: 6px 12px; font-size: 12px; }
 button.btn-red { background: var(--red); color: #fff; }
+button.btn-green { background: var(--green); color: #0f172a; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
 th { color: var(--muted); font-weight: 600; font-size: 12px; }
@@ -71,6 +72,10 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
   padding: 24px; max-width: 900px; width: 90%; max-height: 80vh; overflow-y: auto;
 }
 .modal h3 { margin-bottom: 12px; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 12px 0; }
+.info-item { background: var(--bg); padding: 8px 12px; border-radius: 6px; }
+.info-item .label { font-size: 11px; color: var(--muted); }
+.info-item .value { font-size: 14px; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -103,14 +108,14 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
     <div class="card">
       <h3>任务列表 <button class="btn btn-sm" onclick="loadTasks()" style="margin-left:12px">刷新</button></h3>
       <table><thead><tr>
-        <th>ID</th><th>名称</th><th>状态</th><th>检测项</th><th>完成</th><th>失败</th><th>创建时间</th><th>操作</th>
+        <th>ID</th><th>名称</th><th>状态</th><th>优先级</th><th>检测项</th><th>完成</th><th>失败</th><th>开始时间</th><th>操作</th>
       </tr></thead>
       <tbody id="tk-list"></tbody></table>
     </div>
     <div class="card" id="tk-results-card" style="display:none">
       <h3>检测结果 <span id="tk-results-title"></span></h3>
       <table><thead><tr>
-        <th>结果ID</th><th>taskItemId</th><th>模板ID</th><th>状态</th><th>HTTP</th><th>耗时</th><th>匹配器</th>
+        <th>结果ID</th><th>资产ID</th><th>模板ID</th><th>状态</th><th>HTTP</th><th>耗时</th><th>匹配器</th><th>错误信息</th>
       </tr></thead>
       <tbody id="tk-results"></tbody></table>
     </div>
@@ -143,7 +148,7 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
       </div>
     </div>
     <table><thead><tr>
-      <th>ID</th><th>yamlId</th><th>名称</th><th>严重程度</th><th>CVE</th><th>标签</th><th>分类</th><th>操作</th>
+      <th>ID</th><th>yamlId</th><th>名称</th><th>严重程度</th><th>CVE</th><th>CVSS</th><th>标签</th><th>操作</th>
     </tr></thead>
     <tbody id="v-list"></tbody></table>
     <div id="v-pager" style="margin-top:12px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px"></div>
@@ -159,6 +164,7 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
         <div><label>主机</label><input id="a-host" placeholder="必填" style="width:180px"></div>
         <div><label>端口</label><input id="a-port" value="443" style="width:80px" type="number"></div>
         <div><label>路径</label><input id="a-path" value="/" style="width:100px"></div>
+        <div><label>描述</label><input id="a-desc" placeholder="可选" style="width:150px"></div>
         <div style="align-self:flex-end"><button class="btn" onclick="createAsset()">+ 新增</button></div>
       </div>
       <div id="a-feedback" style="font-size:13px;margin-top:4px"></div>
@@ -166,7 +172,7 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
     <div class="card">
       <h3>资产列表 <button class="btn btn-sm" onclick="loadAssets()" style="margin-left:12px">刷新</button></h3>
       <table><thead><tr>
-        <th>ID</th><th>名称</th><th>主机</th><th>状态</th><th>风险</th><th>操作</th>
+        <th>ID</th><th>名称</th><th>协议</th><th>主机</th><th>端口</th><th>路径</th><th>状态</th><th>风险</th><th>操作</th>
       </tr></thead>
       <tbody id="a-list"></tbody></table>
     </div>
@@ -216,7 +222,20 @@ pre { background: var(--bg); padding: 12px; border-radius: 6px; font-size: 12px;
 // ── 全局状态 ──
 let TOKEN = '';
 let VUL_PAGE = 1, VUL_TOTAL = 0, VUL_SIZE = 20;
+let TASK_PAGE = 1, TASK_TOTAL = 0, TASK_SIZE = 10;
 let GATEWAY = () => document.getElementById('s-gateway').value;
+
+// ── 优先级映射 ──
+const PRIORITY_MAP = { 0: '高', 1: '中', 2: '低' };
+const PRIORITY_COLOR = { 0: 'var(--red)', 1: 'var(--yellow)', 2: 'var(--muted)' };
+
+// ── 状态映射 ──
+const TASK_STATUS_MAP = { 'PENDING':'待执行', 'RUNNING':'执行中', 'DONE':'已完成', 'CANCELLED':'已取消', 'ERROR':'异常终止' };
+const TASK_STATUS_COLOR = { 'PENDING':'var(--muted)', 'RUNNING':'var(--yellow)', 'DONE':'var(--green)', 'CANCELLED':'var(--muted)', 'ERROR':'var(--red)' };
+const RESULT_STATUS_MAP = { 'matched':'命中', 'not_matched':'未命中', 'error':'错误' };
+const RESULT_STATUS_COLOR = { 'matched':'var(--green)', 'not_matched':'var(--muted)', 'error':'var(--red)' };
+const ASSET_STATUS_MAP = { 'ENABLED':'启用', 'DISABLED':'禁用', 'DEPRECATED':'弃用' };
+const ASSET_RISK_MAP = { 'UNKNOWN':'未知', 'LOW':'低危', 'MEDIUM':'中危', 'HIGH':'高危' };
 
 // ── 导航 ──
 document.querySelectorAll('nav button').forEach(btn => {
@@ -239,12 +258,40 @@ async function api(url, opts = {}) {
   return res.json();
 }
 
+// ── 格式化函数 ──
 function fmtSeverity(s) {
   return `<span class="badge badge-${s||'info'}">${s||'unknown'}</span>`;
 }
+
 function fmtTags(tags) {
   if (!tags || !tags.length) return '';
   return tags.map(t => `<span class="tag">${t}</span>`).join('');
+}
+
+function fmtTaskStatus(s) {
+  return `<span style="color:${TASK_STATUS_COLOR[s]||'var(--muted)'}">${TASK_STATUS_MAP[s]||s}</span>`;
+}
+
+function fmtResultStatus(s) {
+  return `<span style="color:${RESULT_STATUS_COLOR[s]||'var(--muted)'}">${RESULT_STATUS_MAP[s]||s}</span>`;
+}
+
+function fmtPriority(p) {
+  return `<span style="color:${PRIORITY_COLOR[p]||'var(--muted)'}">${PRIORITY_MAP[p]||p}</span>`;
+}
+
+function fmtTime(t) {
+  if (!t) return '-';
+  return t.replace('T', ' ').substring(0, 19);
+}
+
+function fmtAssetStatus(s) {
+  return ASSET_STATUS_MAP[s] || s || '-';
+}
+
+function fmtRiskLevel(r) {
+  const color = { 'HIGH': 'var(--red)', 'MEDIUM': 'var(--yellow)', 'LOW': 'var(--green)' };
+  return `<span style="color:${color[r]||'var(--muted)'}">${ASSET_RISK_MAP[r]||r||'-'}</span>`;
 }
 
 // ── 登录 ──
@@ -272,13 +319,14 @@ async function createTask() {
   const name = document.getElementById('tk-name').value;
   const assetIds = document.getElementById('tk-assets').value.split(',').map(Number).filter(n=>n);
   const templateIds = document.getElementById('tk-tpls').value.split(',').map(Number).filter(n=>n);
+  const priority = Number(document.getElementById('tk-pri').value);
   if (!name || !assetIds.length || !templateIds.length) {
     fd.innerHTML = '<span style="color:var(--red)">请填写任务名称、资产IDs、模板IDs</span>'; return;
   }
   fd.innerHTML = '提交中...';
   try {
     const r = await api(GATEWAY() + '/task', {
-      method: 'POST', body: JSON.stringify({ taskName: name, assetIds, templateIds }) });
+      method: 'POST', body: JSON.stringify({ taskName: name, assetIds, templateIds, priority }) });
     if (r.success) {
       fd.innerHTML = `<span style="color:var(--green)">任务创建成功！taskId=${r.data.taskId}, 状态=${r.data.status}</span>`;
       setTimeout(loadTasks, 800);
@@ -290,24 +338,47 @@ async function createTask() {
 
 async function loadTasks() {
   try {
-    const r = await api(GATEWAY() + '/task');
-    if (!r.success) { document.getElementById('tk-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">'+(r.error?.message||'失败')+'</td></tr>'; return; }
-    const rows = (r.data?.data||[]).map(t => `<tr>
-      <td>${t.taskId}</td><td>${(t.taskName||'').slice(0,30)}</td><td>${fmtTaskStatus(t.status)}</td>
-      <td>${t.totalItems||0}</td><td>${t.completedItems||0}</td><td>${t.failedItems||0}</td>
-      <td>${(t.startTime||'').slice(0,16)}</td>
+    const params = new URLSearchParams();
+    params.set('page', TASK_PAGE);
+    params.set('pageSize', TASK_SIZE);
+    const r = await api(GATEWAY() + '/task?' + params);
+    if (!r.success) {
+      document.getElementById('tk-list').innerHTML = '<tr><td colspan="9" style="color:var(--red)">'+(r.error?.message||'失败')+'</td></tr>';
+      return;
+    }
+    const records = r.data?.data || [];
+    TASK_TOTAL = r.data?.total || 0;
+    const rows = records.map(t => `<tr>
+      <td>${t.taskId}</td>
+      <td>${(t.taskName||'').slice(0,25)}</td>
+      <td>${fmtTaskStatus(t.status)}</td>
+      <td>${fmtPriority(t.priority)}</td>
+      <td>${t.totalItems||0}</td>
+      <td>${t.completedItems||0}</td>
+      <td>${t.failedItems||0}</td>
+      <td>${fmtTime(t.startTime)}</td>
       <td>
+        <button class="btn btn-sm" onclick="showTaskDetail(${t.taskId})">详情</button>
         <button class="btn btn-sm" onclick="showResults(${t.taskId})">结果</button>
-        <button class="btn btn-sm btn-red" onclick="cancelTask(${t.taskId})">取消</button>
+        ${t.status === 'PENDING' ? `<button class="btn btn-sm btn-red" onclick="cancelTask(${t.taskId})">取消</button>` : ''}
       </td></tr>`).join('');
-    document.getElementById('tk-list').innerHTML = rows || '<tr><td colspan="8" style="color:var(--muted)">暂无任务</td></tr>';
-  } catch(e) { document.getElementById('tk-list').innerHTML = '<tr><td colspan="8" style="color:var(--red)">加载失败: '+e.message+'</td></tr>'; }
+    document.getElementById('tk-list').innerHTML = rows || '<tr><td colspan="9" style="color:var(--muted)">暂无任务</td></tr>';
+    renderTaskPager();
+  } catch(e) {
+    document.getElementById('tk-list').innerHTML = '<tr><td colspan="9" style="color:var(--red)">加载失败: '+e.message+'</td></tr>';
+  }
 }
 
-function fmtTaskStatus(s) {
-  const map = { 'PENDING':'待执行','RUNNING':'执行中','DONE':'已完成','CANCELLED':'已取消','ERROR':'异常' };
-  const clr = { 'PENDING':'var(--muted)','RUNNING':'var(--yellow)','DONE':'var(--green)','CANCELLED':'var(--muted)','ERROR':'var(--red)' };
-  return `<span style="color:${clr[s]||'var(--muted)'}">${map[s]||s}</span>`;
+function renderTaskPager() {
+  const totalPages = Math.ceil(TASK_TOTAL / TASK_SIZE) || 1;
+  let html = `<span>共 ${TASK_TOTAL} 条，第 ${TASK_PAGE}/${totalPages} 页</span>`;
+  html += ` <button class="btn btn-sm" onclick="TASK_PAGE=1;loadTasks()" ${TASK_PAGE===1?'disabled':''}>首页</button>`;
+  html += ` <button class="btn btn-sm" onclick="TASK_PAGE--;loadTasks()" ${TASK_PAGE===1?'disabled':''}>上一页</button>`;
+  html += ` <button class="btn btn-sm" onclick="TASK_PAGE++;loadTasks()" ${TASK_PAGE===totalPages?'disabled':''}>下一页</button>`;
+  html += ` <button class="btn btn-sm" onclick="TASK_PAGE=${totalPages};loadTasks()" ${TASK_PAGE===totalPages?'disabled':''}>末页</button>`;
+  // 添加到页面（需要在HTML中添加 tk-pager 元素）
+  const pagerEl = document.getElementById('tk-pager');
+  if (pagerEl) pagerEl.innerHTML = html;
 }
 
 async function cancelTask(id) {
@@ -316,28 +387,63 @@ async function cancelTask(id) {
   if (r.success) loadTasks(); else alert(r.error?.message||'取消失败');
 }
 
+async function showTaskDetail(taskId) {
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modal-content').innerHTML = '<p>加载中...</p>';
+  try {
+    const r = await api(GATEWAY() + '/task/' + taskId);
+    if (!r.success) {
+      document.getElementById('modal-content').innerHTML = '<h3>错误</h3><p>' + r.error?.message + '</p>';
+      return;
+    }
+    const d = r.data;
+    let html = `<h3>任务 #${d.taskId} — ${d.taskName||''}</h3>
+      <div class="info-grid">
+        <div class="info-item"><div class="label">状态</div><div class="value">${fmtTaskStatus(d.status)}</div></div>
+        <div class="info-item"><div class="label">优先级</div><div class="value">${fmtPriority(d.priority)}</div></div>
+        <div class="info-item"><div class="label">检测项总数</div><div class="value">${d.totalItems||0}</div></div>
+        <div class="info-item"><div class="label">已完成</div><div class="value">${d.completedItems||0}</div></div>
+        <div class="info-item"><div class="label">失败数</div><div class="value">${d.failedItems||0}</div></div>
+        <div class="info-item"><div class="label">开始时间</div><div class="value">${fmtTime(d.startTime)}</div></div>
+        <div class="info-item"><div class="label">结束时间</div><div class="value">${fmtTime(d.endTime)}</div></div>
+        <div class="info-item"><div class="label">创建时间</div><div class="value">${fmtTime(d.createTime)}</div></div>
+      </div>`;
+    if (d.resultSummary) {
+      html += `<p style="margin-top:12px"><b>结果摘要:</b> ${d.resultSummary}</p>`;
+    }
+    html += `<p style="margin-top:12px"><b>资产IDs:</b> ${d.targetIds||'-'}</p>`;
+    html += `<p><b>模板IDs:</b> ${d.vulIds||'-'}</p>`;
+    document.getElementById('modal-content').innerHTML = html;
+  } catch(e) {
+    document.getElementById('modal-content').innerHTML = '<h3>错误</h3><p>' + e.message + '</p>';
+  }
+}
+
 async function showResults(taskId) {
   const card = document.getElementById('tk-results-card');
   card.style.display = 'block';
   document.getElementById('tk-results-title').innerText = '(taskId=' + taskId + ')';
-  document.getElementById('tk-results').innerHTML = '<tr><td colspan="7">加载中...</td></tr>';
+  document.getElementById('tk-results').innerHTML = '<tr><td colspan="8">加载中...</td></tr>';
   try {
     const r = await api(GATEWAY() + '/task/' + taskId + '/results');
-    if (!r.success) { document.getElementById('tk-results').innerHTML = '<tr><td colspan="7" style="color:var(--red)">'+(r.error?.message||'失败')+'</td></tr>'; return; }
+    if (!r.success) {
+      document.getElementById('tk-results').innerHTML = '<tr><td colspan="8" style="color:var(--red)">'+(r.error?.message||'失败')+'</td></tr>';
+      return;
+    }
     const rows = (r.data?.data||[]).map(rr => `<tr>
-      <td>${rr.id}</td><td>${rr.taskItemId}</td><td>${rr.templateId}</td>
-      <td>${fmtResultStatus(rr.status)}</td><td>${rr.responseStatusCode||'-'}</td>
-      <td>${rr.durationMs||'-'}ms</td><td>${rr.matchedMatcher||rr.errorMessage||'-'}</td>
+      <td>${rr.id}</td>
+      <td>${rr.assetId||'-'}</td>
+      <td>${rr.templateId}</td>
+      <td>${fmtResultStatus(rr.status)}</td>
+      <td>${rr.responseStatusCode||'-'}</td>
+      <td>${rr.durationMs||'-'}ms</td>
+      <td>${rr.matchedMatcher||'-'}</td>
+      <td>${rr.errorMessage||'-'}</td>
     </tr>`).join('');
-    document.getElementById('tk-results').innerHTML = rows || '<tr><td colspan="7" style="color:var(--muted)">暂无结果</td></tr>';
+    document.getElementById('tk-results').innerHTML = rows || '<tr><td colspan="8" style="color:var(--muted)">暂无结果</td></tr>';
   } catch(e) {
-    document.getElementById('tk-results').innerHTML = '<tr><td colspan="7" style="color:var(--red)">加载失败: '+e.message+'</td></tr>';
+    document.getElementById('tk-results').innerHTML = '<tr><td colspan="8" style="color:var(--red)">加载失败: '+e.message+'</td></tr>';
   }
-}
-
-function fmtResultStatus(s) {
-  const m = {'matched':'<span style="color:var(--green)">命中</span>','not_matched':'<span style="color:var(--muted)">未命中</span>','error':'<span style="color:var(--red)">错误</span>'};
-  return m[s] || s;
 }
 
 // ── 漏洞模板 ──
@@ -362,9 +468,9 @@ async function loadVul(page) {
     const records = r.data?.data || [];
     VUL_TOTAL = r.data?.total || 0;
     const rows = records.map(t => `<tr>
-      <td>${t.templateId}</td><td>${t.yamlId||'-'}</td><td>${(t.name||'').slice(0,40)}</td>
-      <td>${fmtSeverity(t.severity)}</td><td>${t.cveId||'-'}</td>
-      <td>${fmtTags(t.tags)}</td><td>${fmtTags(t.categories)}</td>
+      <td>${t.templateId}</td><td>${t.yamlId||'-'}</td><td>${(t.name||'').slice(0,35)}</td>
+      <td>${fmtSeverity(t.severity)}</td><td>${t.cveId||'-'}</td><td>${t.cvssScore||'-'}</td>
+      <td>${fmtTags(t.tags)}</td>
       <td>
         <button class="btn btn-sm" onclick="showDetail(${t.templateId})">详情</button>
         <button class="btn btn-sm btn-red" onclick="deleteVul(${t.templateId})">删</button>
@@ -393,7 +499,6 @@ async function importVul() {
   const raw = document.getElementById('vi-json').value.trim();
   if (!raw) { fd.innerHTML = '<span style="color:var(--red)">请粘贴模板 JSON</span>'; return; }
   let template;
-  // 先尝试 JSON，失败则尝试 YAML
   if (raw.startsWith('{')) {
     try { template = JSON.parse(raw); } catch(e) { fd.innerHTML = '<span style="color:var(--red)">JSON 格式错误: ' + e.message + '</span>'; return; }
   } else {
@@ -432,18 +537,27 @@ async function showDetail(id) {
     }
     const d = r.data;
     let html = `<h3>#${d.templateId} ${d.yamlId ? '('+d.yamlId+')' : ''} — ${d.name||''}</h3>
-      <p>${fmtSeverity(d.severity)} | CVE: ${d.cveId||'-'} | CVSS: ${d.cvssScore||'-'} | EPSS: ${d.epssScore||'-'} | 作者: ${d.author||'-'}</p>
+      <div class="info-grid">
+        <div class="info-item"><div class="label">严重程度</div><div class="value">${fmtSeverity(d.severity)}</div></div>
+        <div class="info-item"><div class="label">CVE</div><div class="value">${d.cveId||'-'}</div></div>
+        <div class="info-item"><div class="label">CVSS</div><div class="value">${d.cvssScore||'-'}</div></div>
+        <div class="info-item"><div class="label">EPSS</div><div class="value">${d.epssScore||'-'}</div></div>
+        <div class="info-item"><div class="label">作者</div><div class="value">${d.author||'-'}</div></div>
+        <div class="info-item"><div class="label">CWE</div><div class="value">${d.cweId||'-'}</div></div>
+      </div>
       <p>Tags: ${fmtTags(d.tags)} | 分类: ${(d.categories||[]).map(c=>c.name).join(', ')}</p>
       <p>${d.description||''}</p>
-      <p>${d.impact ? '<b>影响:</b> ' + d.impact : ''}</p>
-      <p>${d.remediation ? '<b>修复:</b> ' + d.remediation : ''}</p>`;
+      ${d.impact ? '<p><b>影响:</b> ' + d.impact + '</p>' : ''}
+      ${d.remediation ? '<p><b>修复:</b> ' + d.remediation + '</p>' : ''}`;
     if (d.references && d.references.length) {
       html += '<p><b>参考:</b> ' + d.references.map(r=>`<a href="${r.url}" target="_blank" style="color:var(--accent)">${r.title||r.url}</a>`).join(' | ') + '</p>';
     }
     if (d.httpSteps) d.httpSteps.forEach((s,i) => {
       html += `<p style="color:var(--accent);margin-top:12px"><b>Step ${s.stepOrder}: ${s.method||'RAW'} ${s.httpName||''}</b> (matchers: ${s.matchersCondition||'or'})</p>`;
       if (s.path) html += `<pre style="font-size:11px">Path: ${JSON.stringify(s.path)}</pre>`;
+      if (s.raw) html += `<pre style="font-size:11px">Raw:\n${s.raw}</pre>`;
       if (s.headers) html += `<pre style="font-size:11px">Headers: ${JSON.stringify(s.headers,null,2)}</pre>`;
+      if (s.body) html += `<pre style="font-size:11px">Body: ${s.body}</pre>`;
       if (s.matchers) s.matchers.forEach(m => {
         html += `<pre style="font-size:11px">Matcher[${m.type}]: part=${m.part} cond=${m.innerCondition} neg=${m.negative} config=${JSON.stringify(m.config)}</pre>`;
       });
@@ -466,7 +580,8 @@ async function createAsset() {
     requestProtocol: document.getElementById('a-proto').value,
     requestHost: document.getElementById('a-host').value,
     requestPort: Number(document.getElementById('a-port').value),
-    requestPath: document.getElementById('a-path').value
+    requestPath: document.getElementById('a-path').value,
+    description: document.getElementById('a-desc').value
   };
   try {
     const r = await api(GATEWAY() + '/asset', { method:'POST', body:JSON.stringify(body) });
@@ -485,18 +600,54 @@ async function loadAssets() {
   try {
     const r = await api(GATEWAY() + '/asset');
     if (!r.success) {
-      document.getElementById('a-list').innerHTML = '<tr><td colspan="6" style="color:var(--red)">' + (r.error?.message||'失败') + '</td></tr>';
+      document.getElementById('a-list').innerHTML = '<tr><td colspan="9" style="color:var(--red)">' + (r.error?.message||'失败') + '</td></tr>';
       return;
     }
     const records = r.data?.data || [];
     const rows = records.map(a => `<tr>
-      <td>${a.assetId}</td><td>${a.name}</td><td>${a.requestHost}:${a.requestPort}</td>
-      <td>${a.status||'-'}</td><td>${a.riskLevel||'-'}</td>
-      <td><button class="btn btn-sm btn-red" onclick="deleteAsset(${a.assetId})">删除</button></td>
+      <td>${a.assetId}</td>
+      <td>${(a.name||'').slice(0,20)}</td>
+      <td>${a.requestProtocol||'-'}</td>
+      <td>${a.requestHost||'-'}</td>
+      <td>${a.requestPort||'-'}</td>
+      <td>${(a.requestPath||'/').slice(0,15)}</td>
+      <td>${fmtAssetStatus(a.status)}</td>
+      <td>${fmtRiskLevel(a.riskLevel)}</td>
+      <td>
+        <button class="btn btn-sm" onclick="showAssetDetail(${a.assetId})">详情</button>
+        <button class="btn btn-sm btn-red" onclick="deleteAsset(${a.assetId})">删除</button>
+      </td>
     </tr>`).join('');
-    document.getElementById('a-list').innerHTML = rows || '<tr><td colspan="6" style="color:var(--muted)">暂无资产</td></tr>';
+    document.getElementById('a-list').innerHTML = rows || '<tr><td colspan="9" style="color:var(--muted)">暂无资产</td></tr>';
   } catch(e) {
-    document.getElementById('a-list').innerHTML = '<tr><td colspan="6" style="color:var(--red)">加载失败: ' + e.message + '</td></tr>';
+    document.getElementById('a-list').innerHTML = '<tr><td colspan="9" style="color:var(--red)">加载失败: ' + e.message + '</td></tr>';
+  }
+}
+
+async function showAssetDetail(id) {
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modal-content').innerHTML = '<p>加载中...</p>';
+  try {
+    const r = await api(GATEWAY() + '/asset/' + id);
+    if (!r.success) {
+      document.getElementById('modal-content').innerHTML = '<h3>错误</h3><p>' + r.error?.message + '</p>';
+      return;
+    }
+    const d = r.data;
+    let html = `<h3>资产 #${d.assetId} — ${d.name||''}</h3>
+      <div class="info-grid">
+        <div class="info-item"><div class="label">协议</div><div class="value">${d.requestProtocol||'-'}</div></div>
+        <div class="info-item"><div class="label">主机</div><div class="value">${d.requestHost||'-'}</div></div>
+        <div class="info-item"><div class="label">端口</div><div class="value">${d.requestPort||'-'}</div></div>
+        <div class="info-item"><div class="label">路径</div><div class="value">${d.requestPath||'-'}</div></div>
+        <div class="info-item"><div class="label">状态</div><div class="value">${fmtAssetStatus(d.status)}</div></div>
+        <div class="info-item"><div class="label">风险等级</div><div class="value">${fmtRiskLevel(d.riskLevel)}</div></div>
+        <div class="info-item"><div class="label">最近扫描</div><div class="value">${fmtTime(d.lastScanTime)}</div></div>
+      </div>
+      ${d.description ? '<p><b>描述:</b> ' + d.description + '</p>' : ''}`;
+    document.getElementById('modal-content').innerHTML = html;
+  } catch(e) {
+    document.getElementById('modal-content').innerHTML = '<h3>错误</h3><p>' + e.message + '</p>';
   }
 }
 
