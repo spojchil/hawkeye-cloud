@@ -160,6 +160,8 @@ public class VariableContext {
         // 3. 解析标准 {{变量名}} 格式
         result = resolveStandardVar(result);
 
+        // 4. 解决嵌套
+        result = resolveStandardVar(result);
         return result;
     }
 
