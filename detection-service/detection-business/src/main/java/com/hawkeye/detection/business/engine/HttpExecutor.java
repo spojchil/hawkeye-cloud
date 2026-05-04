@@ -42,7 +42,13 @@ public class HttpExecutor {
     public HttpResponseContext execute(HttpRequestConfig config, VariableContext resolver) throws IOException, InterruptedException {
         List<String> paths = config.getPaths();
         if (paths == null || paths.isEmpty()) {
-            paths = List.of("/");
+            // 如果没有 path，尝试使用 BaseURL 构建默认路径
+            String baseURL = resolver.resolve("{{BaseURL}}");
+            if (baseURL != null && !baseURL.equals("{{BaseURL}}")) {
+                paths = List.of(baseURL);
+            } else {
+                throw new IOException("模板缺少 path 定义，且无法构建 BaseURL");
+            }
         }
 
         // 逐个尝试 path 列表中的路径（模板中 path 是数组，可能定义多个候选 URL）
