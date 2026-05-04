@@ -538,6 +538,21 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             sv.setReqCondition(step.getReqCondition());
             sv.setMatchers(getMatcherVOs(templateId, step.getStepOrder()));
             sv.setExtractors(getExtractorVOs(templateId, step.getStepOrder()));
+
+            // 从 vul_text_content 表获取 raw 和 body 内容
+            if (step.getRawTextId() != null) {
+                VulTextContent rawContent = textContentMapper.selectById(step.getRawTextId());
+                if (rawContent != null) {
+                    sv.setRaw(rawContent.getContent());
+                }
+            }
+            if (step.getBodyTextId() != null) {
+                VulTextContent bodyContent = textContentMapper.selectById(step.getBodyTextId());
+                if (bodyContent != null) {
+                    sv.setBody(bodyContent.getContent());
+                }
+            }
+
             return sv;
         }).toList();
     }
