@@ -15,8 +15,7 @@ import java.util.Map;
  * <p>
  * 当前实现：
  * 1. 过滤掉使用 payloads 的模板（暂不支持）
- * 2. 过滤掉只使用 raw 格式的模板（暂不支持）
- * 3. 其他预检逻辑待扩展
+ * 2. 其他预检逻辑待扩展
  */
 @Slf4j
 @Component
@@ -27,12 +26,6 @@ public class DefaultTaskItemPreChecker implements TaskItemPreChecker {
         // 检查模板是否使用了 payloads（暂不支持）
         if (hasPayloads(template)) {
             log.debug("跳过使用payloads的模板: {}", template.getYamlId());
-            return false;
-        }
-
-        // 检查模板是否只使用了 raw 格式（暂不支持）
-        if (onlyUsesRaw(template)) {
-            log.debug("跳过只使用raw格式的模板: {}", template.getYamlId());
             return false;
         }
 
@@ -71,25 +64,5 @@ public class DefaultTaskItemPreChecker implements TaskItemPreChecker {
         // 检查是否有有效的 payload 值
         return payloads.values().stream()
                 .anyMatch(v -> v != null && !(v instanceof List<?> list && list.isEmpty()));
-    }
-
-    /**
-     * 检查模板是否只使用了 raw 格式。
-     * <p>
-     * raw 格式是原始 HTTP 请求文本（如 "GET /path HTTP/1.1\nHost: xxx"）。
-     * 当前系统只支持 path 格式，暂不支持 raw 格式。
-     */
-    private boolean onlyUsesRaw(TemplateDetectConfig template) {
-        if (template.getHttpSteps() == null || template.getHttpSteps().isEmpty()) {
-            return false;
-        }
-        // 检查所有步骤是否都没有 path
-        return template.getHttpSteps().stream()
-                .allMatch(this::hasNoPath);
-    }
-
-    private boolean hasNoPath(TemplateDetectConfig.HttpStepConfig step) {
-        // 如果 path 为空或 null，则认为是 raw 格式
-        return step.getPath() == null || step.getPath().isEmpty();
     }
 }
