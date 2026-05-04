@@ -1,7 +1,7 @@
 package com.hawkeye.task.business.feign;
 
 import com.common.utils.response.ApiResponse;
-import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
+import com.hawkeye.task.common.pojo.dto.AssetBrief;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,5 +10,5 @@ import org.springframework.web.bind.annotation.PathVariable;
 public interface AssetServiceFeign {
 
     @GetMapping("/{assetId}")
-    ApiResponse<AssetVO.Response> getAsset(@PathVariable Long assetId);
+    ApiResponse<AssetBrief> getAsset(@PathVariable Long assetId);
 }

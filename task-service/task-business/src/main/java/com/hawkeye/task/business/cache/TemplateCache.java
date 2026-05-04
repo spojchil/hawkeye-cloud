@@ -6,7 +6,7 @@ import com.common.utils.constant.HeaderConstants;
 import com.hawkeye.task.business.config.TaskConfig;
 import com.hawkeye.task.business.feign.VulServiceFeign;
 import com.hawkeye.task.common.pojo.dto.TemplateDetectConfig;
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateVO;
+import com.hawkeye.task.common.pojo.dto.VulTemplateBrief;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -22,7 +22,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 模板检测配置缓存。
  * <p>
- * L1 Caffeine + L2 Redis，Feign → VulTemplateVO.Response → 修剪 → TemplateDetectConfig。
+ * L1 Caffeine + L2 Redis，Feign → VulTemplateBrief → 修剪 → TemplateDetectConfig。
  */
 @Slf4j
 @Component
@@ -89,7 +89,7 @@ public class TemplateCache {
         // Feign → 修剪 → 缓存
         log.debug("Feign 查 vul-service: templateId={}", templateId);
         try {
-            VulTemplateVO.Response vo = vulServiceFeign.getTemplate(templateId).getData();
+            VulTemplateBrief vo = vulServiceFeign.getTemplate(templateId).getData();
             if (vo != null) {
                 TemplateDetectConfig cfg = TemplateDetectConfig.from(vo);
                 caffeineCache.put(templateId, CacheEntry.of(cfg, logicalTtl));
@@ -119,7 +119,7 @@ public class TemplateCache {
     private void asyncRefresh(Long templateId) {
         refreshExecutor.submit(() -> {
             try {
-                VulTemplateVO.Response vo = vulServiceFeign.getTemplate(templateId).getData();
+                VulTemplateBrief vo = vulServiceFeign.getTemplate(templateId).getData();
                 if (vo != null) {
                     TemplateDetectConfig cfg = TemplateDetectConfig.from(vo);
                     caffeineCache.put(templateId, CacheEntry.of(cfg, logicalTtl));

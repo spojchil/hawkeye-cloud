@@ -1,16 +1,12 @@
 package com.hawkeye.task.common.pojo.dto;
 
-import com.hawkeye.vul.common.pojo.vo.vul.VulTemplateVO;
 import lombok.Data;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * 模板检测配置（从 VulTemplateVO.Response 修剪，只保留执行必需字段）。
- * <p>
- * 去掉了 name/author/description/severity/cveId/tags/categories/references
- * 等检测引擎不需要的元数据，减小消息体和缓存体积。
+ * 模板检测配置（从 VulTemplateBrief 修剪，只保留执行必需字段，去掉 httpId 等）。
  */
 @Data
 public class TemplateDetectConfig {
@@ -20,102 +16,53 @@ public class TemplateDetectConfig {
     private Map<String, Object> variables;
     private List<HttpStepConfig> httpSteps;
 
-    @Data
-    public static class HttpStepConfig {
-        private Integer stepOrder;
-        private String httpName;
-        private String method;
-        private List<String> path;
-        private Map<String, String> headers;
-        private String body;
-        private String raw;
-        private String attack;
-        private String matchersCondition;
-        private Map<String, Object> payloads;
-        private Boolean stopAtFirstMatch;
-        private Boolean selfContained;
-        private Boolean redirects;
+    @Data public static class HttpStepConfig {
+        private Integer stepOrder; private String httpName; private String method;
+        private List<String> path; private Map<String, String> headers;
+        private String body; private String raw; private String attack;
+        private String matchersCondition; private Map<String, Object> payloads;
+        private Boolean stopAtFirstMatch, selfContained, redirects, hostRedirects, unsafe, cookieReuse, reqCondition;
         private Integer maxRedirects;
-        private Boolean hostRedirects;
-        private Boolean unsafe;
-        private Boolean cookieReuse;
-        private Boolean reqCondition;
-        private List<MatcherConfig> matchers;
-        private List<ExtractorConfig> extractors;
+        private List<MatcherConfig> matchers; private List<ExtractorConfig> extractors;
     }
-
-    @Data
-    public static class MatcherConfig {
-        private String type;
-        private String part;
-        private String innerCondition;
-        private Boolean negative;
-        private Boolean caseInsensitive;
-        private Boolean matchAll;
+    @Data public static class MatcherConfig {
+        private String type, part, innerCondition;
+        private Boolean negative, caseInsensitive, matchAll;
         private Map<String, Object> config;
     }
-
-    @Data
-    public static class ExtractorConfig {
-        private String type;
-        private String part;
-        private String extractorName;
+    @Data public static class ExtractorConfig {
+        private String type, part, extractorName;
         private Map<String, Object> config;
-        private Boolean internal;
-        private Integer groupNum;
+        private Boolean internal; private Integer groupNum;
     }
 
-    /**
-     * 从 VulTemplateVO.Response 修剪出检测所需字段。
-     */
-    public static TemplateDetectConfig from(VulTemplateVO.Response vo) {
-        TemplateDetectConfig cfg = new TemplateDetectConfig();
-        cfg.setYamlId(vo.getYamlId());
-        cfg.setFlow(vo.getFlow());
-        cfg.setVariables(vo.getVariables());
-        if (vo.getHttpSteps() != null) {
-            cfg.setHttpSteps(vo.getHttpSteps().stream().map(s -> {
-                HttpStepConfig hs = new HttpStepConfig();
-                hs.setStepOrder(s.getStepOrder());
-                hs.setHttpName(s.getHttpName());
-                hs.setMethod(s.getMethod());
-                hs.setPath(s.getPath());
-                hs.setHeaders(s.getHeaders());
-                hs.setBody(s.getBody());
-                hs.setRaw(s.getRaw());
-                hs.setAttack(s.getAttack());
-                hs.setMatchersCondition(s.getMatchersCondition());
-                hs.setPayloads(s.getPayloads());
-                hs.setStopAtFirstMatch(s.getStopAtFirstMatch());
-                hs.setSelfContained(s.getSelfContained());
-                hs.setRedirects(s.getRedirects());
-                hs.setMaxRedirects(s.getMaxRedirects());
-                hs.setHostRedirects(s.getHostRedirects());
-                hs.setUnsafe(s.getUnsafe());
-                hs.setCookieReuse(s.getCookieReuse());
-                hs.setReqCondition(s.getReqCondition());
-                if (s.getMatchers() != null) {
-                    hs.setMatchers(s.getMatchers().stream().map(m -> {
-                        MatcherConfig mc = new MatcherConfig();
-                        mc.setType(m.getType()); mc.setPart(m.getPart());
-                        mc.setInnerCondition(m.getInnerCondition());
-                        mc.setNegative(m.getNegative()); mc.setCaseInsensitive(m.getCaseInsensitive());
-                        mc.setMatchAll(m.getMatchAll()); mc.setConfig(m.getConfig());
-                        return mc;
-                    }).toList());
-                }
-                if (s.getExtractors() != null) {
-                    hs.setExtractors(s.getExtractors().stream().map(e -> {
-                        ExtractorConfig ec = new ExtractorConfig();
-                        ec.setType(e.getType()); ec.setPart(e.getPart());
-                        ec.setExtractorName(e.getExtractorName()); ec.setConfig(e.getConfig());
-                        ec.setInternal(e.getInternal()); ec.setGroupNum(e.getGroupNum());
-                        return ec;
-                    }).toList());
-                }
-                return hs;
-            }).toList());
-        }
-        return cfg;
+    public static TemplateDetectConfig from(VulTemplateBrief b) {
+        var c = new TemplateDetectConfig();
+        c.yamlId = b.getYamlId(); c.flow = b.getFlow(); c.variables = b.getVariables();
+        if (b.getHttpSteps() != null) c.httpSteps = b.getHttpSteps().stream().map(s -> {
+            var h = new HttpStepConfig();
+            h.stepOrder = s.getStepOrder(); h.httpName = s.getHttpName(); h.method = s.getMethod();
+            h.path = s.getPath(); h.headers = s.getHeaders(); h.body = s.getBody(); h.raw = s.getRaw();
+            h.attack = s.getAttack(); h.matchersCondition = s.getMatchersCondition();
+            h.payloads = s.getPayloads(); h.stopAtFirstMatch = s.getStopAtFirstMatch();
+            h.selfContained = s.getSelfContained(); h.redirects = s.getRedirects();
+            h.maxRedirects = s.getMaxRedirects(); h.hostRedirects = s.getHostRedirects();
+            h.unsafe = s.getUnsafe(); h.cookieReuse = s.getCookieReuse();
+            h.reqCondition = s.getReqCondition();
+            if (s.getMatchers() != null) h.matchers = s.getMatchers().stream().map(m -> {
+                var mc = new MatcherConfig();
+                mc.type = m.getType(); mc.part = m.getPart(); mc.innerCondition = m.getInnerCondition();
+                mc.negative = m.getNegative(); mc.caseInsensitive = m.getCaseInsensitive();
+                mc.matchAll = m.getMatchAll(); mc.config = m.getConfig(); return mc;
+            }).toList();
+            if (s.getExtractors() != null) h.extractors = s.getExtractors().stream().map(e -> {
+                var ec = new ExtractorConfig();
+                ec.type = e.getType(); ec.part = e.getPart(); ec.extractorName = e.getExtractorName();
+                ec.config = e.getConfig(); ec.internal = e.getInternal(); ec.groupNum = e.getGroupNum();
+                return ec;
+            }).toList();
+            return h;
+        }).toList();
+        return c;
     }
 }

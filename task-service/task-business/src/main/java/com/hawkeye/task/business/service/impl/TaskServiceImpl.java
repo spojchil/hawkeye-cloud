@@ -12,7 +12,7 @@ import com.common.utils.context.RequestContext;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
-import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
+import com.hawkeye.task.common.pojo.dto.AssetBrief;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
 import com.hawkeye.detection.common.pojo.entity.DetectionResult;
 import com.hawkeye.task.business.cache.TemplateCache;
@@ -82,7 +82,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             return;
         }
 
-        Map<Long, AssetVO.Response> assets = fetchAssets(assetIds);
+        Map<Long, AssetBrief> assets = fetchAssets(assetIds);
         if (assets.isEmpty()) {
             task.setStatus(TaskStatusEnum.ERROR);
             updateById(task);
@@ -103,8 +103,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         }
     }
 
-    private Map<Long, AssetVO.Response> fetchAssets(List<Long> assetIds) {
-        Map<Long, AssetVO.Response> assets = new LinkedHashMap<>();
+    private Map<Long, AssetBrief> fetchAssets(List<Long> assetIds) {
+        Map<Long, AssetBrief> assets = new LinkedHashMap<>();
         for (Long assetId : assetIds) {
             try {
                 var resp = assetServiceFeign.getAsset(assetId);
@@ -120,14 +120,14 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
 
     private List<TaskItemMessage> buildMessages(Task task, List<Long> assetIds,
                                                  List<Long> templateIds,
-                                                 Map<Long, AssetVO.Response> assets,
+                                                 Map<Long, AssetBrief> assets,
                                                  Map<Long, TemplateDetectConfig> templates) {
         List<TaskItemMessage> messages = new ArrayList<>();
         long now = System.currentTimeMillis();
         Long tenantId = currentTenantId();
 
         for (Long assetId : assetIds) {
-            AssetVO.Response asset = assets.get(assetId);
+            AssetBrief asset = assets.get(assetId);
             if (asset == null) continue;
 
             for (Long templateId : templateIds) {
