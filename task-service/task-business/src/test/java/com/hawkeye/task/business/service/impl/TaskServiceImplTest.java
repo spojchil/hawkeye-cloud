@@ -52,6 +52,8 @@ class TaskServiceImplTest {
     @Mock
     private com.hawkeye.task.business.mapper.DetectionResultMapper detectionResultMapper;
     @Mock
+    private com.hawkeye.task.business.service.TaskItemPreChecker preChecker;
+    @Mock
     private LambdaQueryChainWrapper<Task> lambdaChain;
     @Mock
     private LambdaUpdateChainWrapper<Task> lambdaUpdateChain;
@@ -68,7 +70,7 @@ class TaskServiceImplTest {
     @BeforeEach
     void setUp() {
         taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper,
-                templateCache, assetServiceFeign, taskProducerService, detectionResultMapper));
+                templateCache, assetServiceFeign, taskProducerService, detectionResultMapper, preChecker));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
         // stub 异步拆分，单元测试聚焦 create/getById/pageQuery/cancel 逻辑
@@ -179,7 +181,7 @@ class TaskServiceImplTest {
     @DisplayName("查询任务详情 — 任务存在，返回完整信息")
     void getByIdFound() {
         Task task = buildTask(5001L, "扫描任务", TaskStatusEnum.RUNNING, 100, 42, 3);
-        when(taskMapper.selectById(5001L)).thenReturn(task);
+        when(taskMapper.selectOne(any())).thenReturn(task);
 
         TaskVO.Response response = taskService.getById(5001L);
 
@@ -196,7 +198,7 @@ class TaskServiceImplTest {
     @Test
     @DisplayName("查询任务详情 — 任务不存在，抛 ApiException（404）")
     void getByIdNotFound() {
-        when(taskMapper.selectById(anyLong())).thenReturn(null);
+        when(taskMapper.selectOne(any())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskService.getById(999L));
@@ -329,7 +331,7 @@ class TaskServiceImplTest {
     void cancelNotPending() {
         when(lambdaUpdateChain.update()).thenReturn(false);
         Task task = buildTask(1L, "运行中", TaskStatusEnum.RUNNING, 100, 42, 3);
-        when(taskMapper.selectById(1L)).thenReturn(task);
+        when(taskMapper.selectOne(any())).thenReturn(task);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskService.cancel(1L));

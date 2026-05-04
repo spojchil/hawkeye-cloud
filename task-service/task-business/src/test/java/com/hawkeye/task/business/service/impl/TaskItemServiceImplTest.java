@@ -71,14 +71,14 @@ class TaskItemServiceImplTest {
     // === 更新检测结果 updateResult ===
 
     @Test
-    @DisplayName("更新结果 — SUCCESS 状态回写成功")
+    @DisplayName("更新结果 — MATCHED 状态回写成功")
     void updateResultSuccess() {
         TaskItem item = buildItem(100L, 5001L, 10L, 20L, TaskItemStatusEnum.PENDING, null);
         when(taskItemMapper.selectById(100L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
-        request.setStatus(TaskItemStatusEnum.SUCCESS);
+        request.setStatus(TaskItemStatusEnum.MATCHED);
         request.setResult("{\"matched\":true,\"matcher\":\"word\"}");
 
         TaskItemVO.Response response = taskItemService.updateResult(100L, request);
@@ -86,7 +86,7 @@ class TaskItemServiceImplTest {
         assertAll("回写成功",
                 () -> assertEquals(100L, response.getItemId()),
                 () -> assertEquals(5001L, response.getTaskId()),
-                () -> assertEquals(TaskItemStatusEnum.SUCCESS, response.getStatus()),
+                () -> assertEquals(TaskItemStatusEnum.MATCHED, response.getStatus()),
                 () -> assertEquals("{\"matched\":true,\"matcher\":\"word\"}", response.getResult())
         );
         verify(taskItemMapper).updateById((TaskItem) any());
@@ -110,19 +110,19 @@ class TaskItemServiceImplTest {
     }
 
     @Test
-    @DisplayName("更新结果 — NO_MATCH 状态回写（检测未命中）")
+    @DisplayName("更新结果 — NOT_MATCHED 状态回写（检测未命中）")
     void updateResultNoMatch() {
         TaskItem item = buildItem(300L, 5002L, 50L, 60L, TaskItemStatusEnum.PENDING, null);
         when(taskItemMapper.selectById(300L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
-        request.setStatus(TaskItemStatusEnum.NO_MATCH);
+        request.setStatus(TaskItemStatusEnum.NOT_MATCHED);
         request.setResult("{\"matched\":false}");
 
         TaskItemVO.Response response = taskItemService.updateResult(300L, request);
 
-        assertEquals(TaskItemStatusEnum.NO_MATCH, response.getStatus());
+        assertEquals(TaskItemStatusEnum.NOT_MATCHED, response.getStatus());
     }
 
     @Test
@@ -131,7 +131,7 @@ class TaskItemServiceImplTest {
         when(taskItemMapper.selectById(anyLong())).thenReturn(null);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
-        request.setStatus(TaskItemStatusEnum.SUCCESS);
+        request.setStatus(TaskItemStatusEnum.MATCHED);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskItemService.updateResult(999L, request));
