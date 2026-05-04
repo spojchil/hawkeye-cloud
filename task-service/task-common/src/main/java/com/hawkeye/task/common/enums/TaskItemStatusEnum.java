@@ -5,18 +5,22 @@ import com.baomidou.mybatisplus.annotation.IEnum;
 import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
+/**
+ * 检测项状态枚举。
+ * <p>
+ * 值必须与 DDL 注释一致：0=待执行, 1=匹配, 2=未匹配, 3=失败
+ */
 @Getter
 public enum TaskItemStatusEnum implements IEnum<Integer> {
 
     PENDING(0, "待执行"),
-    SUCCESS(1, "成功"),
-    NO_MATCH(2, "未匹配"),
+    MATCHED(1, "匹配"),
+    NOT_MATCHED(2, "未匹配"),
     FAILED(3, "失败");
 
     @EnumValue
     private final Integer value;
 
-    // 自定义序列化方法
     @JsonValue
     private final String description;
 
