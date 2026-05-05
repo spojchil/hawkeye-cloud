@@ -67,6 +67,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <fastjson2.version>2.0.53</fastjson2.version>
         <easyexcel.version>4.0.3</easyexcel.version>
+        <aviator.version>5.4.3</aviator.version>
         <!-- 测试相关 -->
         <mockito.version>5.12.0</mockito.version>
         <testcontainers.version>2.0.3</testcontainers.version>
@@ -163,6 +164,13 @@
                 <groupId>org.apache.rocketmq</groupId>
                 <artifactId>rocketmq-spring-boot-starter</artifactId>
                 <version>${rocketmq.version}</version>
+            </dependency>
+
+            <!-- Aviator 表达式引擎（替代 MVEL，沙箱安全） -->
+            <dependency>
+                <groupId>com.googlecode.aviator</groupId>
+                <artifactId>aviator</artifactId>
+                <version>${aviator.version}</version>
             </dependency>
 
             <!-- MapStruct 对象映射 -->
