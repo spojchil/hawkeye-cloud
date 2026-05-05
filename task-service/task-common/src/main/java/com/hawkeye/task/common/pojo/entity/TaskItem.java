@@ -8,11 +8,16 @@ import com.hawkeye.task.common.enums.TaskItemStatusEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
+
 /**
  * 检测项——一次任务拆分的最小执行单元（一个资产 + 一个模板）。
  * <p>
- * 数据量大时（M×N 可达数万），需要考虑分库分表（按 task_id 分片）。
- * 检测服务也操作此表，可考虑提取到 common-service。
+ * 合并了原 detection_result 表的字段，包含检测执行结果。
+ * <p>
+ * 状态流转：
+ * - PENDING(0) → MATCHED(1) / NOT_MATCHED(2) / FAILED(3)
+ * - 预检过滤 → SKIPPED(4)
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -28,12 +33,32 @@ public class TaskItem extends BaseEntity {
     /** 资产 ID */
     private Long assetId;
 
-    /** 漏洞模板 ID（关联 vul_template.id） */
+    /** 漏洞模板 ID（关联 vul_template.template_id） */
     private Long vulId;
 
-    /** PENDING → SUCCESS / NO_MATCH / FAILED */
+    /** 状态 */
     private TaskItemStatusEnum status;
 
-    /** 检测结果 JSON，回写 detection-service 执行结果 */
-    private String result;
+    // ── 检测结果字段（原 detection_result 表）─────────────────────────
+
+    /** HTTP 响应状态码 */
+    private Integer responseStatusCode;
+
+    /** 响应体大小(字节) */
+    private Integer responseSize;
+
+    /** 响应摘要 */
+    private String responseSummary;
+
+    /** 命中的匹配器名称 */
+    private String matchedMatcher;
+
+    /** 匹配时间 */
+    private LocalDateTime matchedAt;
+
+    /** 错误信息 */
+    private String errorMessage;
+
+    /** HTTP请求耗时(毫秒) */
+    private Integer durationMs;
 }

@@ -1,6 +1,6 @@
 -- ============================================================
 -- Hawkeye Cloud — 任务调度服务 建表 DDL
--- 版本：v3.0（与 vul/asset/auth 规范统一）
+-- 版本：v4.0（合并 task_item 和 detection_result）
 -- ============================================================
 -- 约定：
 --   主键          table_id 格式（task_id, item_id）
@@ -16,6 +16,7 @@ USE hawkeye;
 DROP TABLE IF EXISTS `task_item`;
 DROP TABLE IF EXISTS `task`;
 
+-- 任务表
 CREATE TABLE IF NOT EXISTS `task`
 (
     `task_id`         BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
@@ -44,20 +45,27 @@ CREATE TABLE IF NOT EXISTS `task`
   COLLATE = utf8mb4_general_ci COMMENT ='检测任务表';
 
 
+-- 检测项表（合并原 detection_result 表）
 CREATE TABLE IF NOT EXISTS `task_item`
 (
-    `item_id`    BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
-    `task_id`    BIGINT UNSIGNED  NOT NULL COMMENT '所属任务 ID',
-    `asset_id`   BIGINT UNSIGNED  NOT NULL COMMENT '资产 ID',
-    `vul_id`     BIGINT UNSIGNED  NOT NULL COMMENT '模板 ID',
-    `status`     TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态: 0=待执行,1=匹配,2=未匹配,3=失败',
-    `result`     JSON COMMENT '检测结果 JSON',
-    `tenant_id`  BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
-    `create_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `create_by`  VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '创建人用户名',
-    `update_by`  VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '更新人用户名',
-    `deleted_at` BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
+    `item_id`              BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
+    `task_id`              BIGINT UNSIGNED  NOT NULL COMMENT '所属任务 ID',
+    `asset_id`             BIGINT UNSIGNED  NOT NULL COMMENT '资产 ID',
+    `vul_id`               BIGINT UNSIGNED  NOT NULL COMMENT '模板 ID',
+    `status`               TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态: 0=待执行,1=匹配,2=未匹配,3=失败,4=跳过',
+    `response_status_code` INT COMMENT 'HTTP 响应状态码',
+    `response_size`        INT COMMENT '响应体大小(字节)',
+    `response_summary`     VARCHAR(2048) COMMENT '响应摘要',
+    `matched_matcher`      VARCHAR(255) COMMENT '命中的匹配器名称',
+    `matched_at`           DATETIME COMMENT '匹配时间',
+    `error_message`        VARCHAR(2048) COMMENT '错误信息',
+    `duration_ms`          INT COMMENT 'HTTP请求耗时(毫秒)',
+    `tenant_id`            BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
+    `create_time`          DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`          DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `create_by`            VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    `update_by`            VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '更新人用户名',
+    `deleted_at`           BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
     PRIMARY KEY (`item_id`),
     UNIQUE KEY `uk_task_asset_vul` (`task_id`, `asset_id`, `vul_id`),
     KEY `idx_task_id` (`task_id`),
@@ -67,4 +75,4 @@ CREATE TABLE IF NOT EXISTS `task_item`
     KEY `idx_tenant_deleted` (`tenant_id`, `deleted_at`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_general_ci COMMENT ='检测项表';
+  COLLATE = utf8mb4_general_ci COMMENT ='检测项表（合并原detection_result）';

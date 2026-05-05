@@ -2,6 +2,7 @@ package com.hawkeye.detection.business.engine;
 
 import com.hawkeye.detection.business.engine.model.HttpRequestConfig;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
+import com.hawkeye.detection.common.util.UrlFixer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -194,10 +195,10 @@ public class HttpExecutor {
         // 解析 Body
         StringBuilder body = new StringBuilder();
         for (i = bodyStartIndex; i < lines.length; i++) {
-            if (body.length() > 0) body.append("\n");
+            if (!body.isEmpty()) body.append("\n");
             body.append(lines[i]);
         }
-        HttpRequest.BodyPublisher bodyPublisher = body.length() > 0
+        HttpRequest.BodyPublisher bodyPublisher = !body.isEmpty()
                 ? HttpRequest.BodyPublishers.ofString(body.toString())
                 : HttpRequest.BodyPublishers.noBody();
         builder.method(method, bodyPublisher);
@@ -222,9 +223,8 @@ public class HttpExecutor {
             return URI.create(uriStr);
         } catch (IllegalArgumentException e) {
             try {
-                return new URI(null, null,
-                        java.net.URLEncoder.encode(uriStr, java.nio.charset.StandardCharsets.UTF_8),
-                        null);
+                // 要求uriStr中不能有中文，必须有scheme
+                return URI.create(UrlFixer.fix(uriStr));
             } catch (Exception ex) {
                 throw new IOException("无法构建 URI: " + uriStr, ex);
             }

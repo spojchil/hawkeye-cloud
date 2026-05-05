@@ -14,10 +14,8 @@ import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
 import com.hawkeye.task.common.pojo.dto.AssetBrief;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
-import com.hawkeye.detection.common.pojo.entity.DetectionResult;
 import com.hawkeye.task.business.cache.TemplateCache;
 import com.hawkeye.task.business.feign.AssetServiceFeign;
-import com.hawkeye.task.business.mapper.DetectionResultMapper;
 import com.hawkeye.task.business.mapper.TaskItemMapper;
 import com.hawkeye.task.business.mapper.TaskMapper;
 import com.hawkeye.task.business.mapstruct.TaskMapstruct;
@@ -60,7 +58,6 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     private final TemplateCache templateCache;
     private final AssetServiceFeign assetServiceFeign;
     private final TaskProducerService taskProducerService;
-    private final DetectionResultMapper detectionResultMapper;
     private final TaskItemPreChecker preChecker;
 
     // ── 创建任务 ──────────────────────────────────────────────────────
@@ -391,15 +388,17 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     public ListResult<TaskResultVO> listResults(Long taskId, String status, Integer page, Integer size) {
         getTaskOrThrow(taskId);
 
-        LambdaQueryWrapper<DetectionResult> wrapper = new LambdaQueryWrapper<DetectionResult>()
-                .eq(DetectionResult::getTaskId, taskId)
-                .eq(StrUtil.isNotBlank(status), DetectionResult::getStatus, status)
-                .orderByAsc(DetectionResult::getTaskItemId);
+        // 从 task_item 表查询结果
+        LambdaQueryWrapper<TaskItem> wrapper = new LambdaQueryWrapper<TaskItem>()
+                .eq(TaskItem::getTaskId, taskId)
+                .eq(TaskItem::getDeletedAt, 0L)
+                .eq(StrUtil.isNotBlank(status), TaskItem::getStatus, parseStatus(status))
+                .orderByAsc(TaskItem::getItemId);
 
         int pageSize = Math.min(size != null ? size : 20, 200);
         int pageNum = page != null ? Math.max(page, 1) : 1;
-        Page<DetectionResult> pg = new Page<>(pageNum, pageSize);
-        IPage<DetectionResult> result = detectionResultMapper.selectPage(pg, wrapper);
+        Page<TaskItem> pg = new Page<>(pageNum, pageSize);
+        IPage<TaskItem> result = taskItemMapper.selectPage(pg, wrapper);
 
         List<TaskResultVO> vos = result.getRecords().stream()
                 .map(this::toTaskResultVO)
@@ -408,24 +407,36 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return ListResult.result((int) result.getTotal(), vos);
     }
 
+    /** 解析状态字符串为枚举 */
+    private TaskItemStatusEnum parseStatus(String status) {
+        if (status == null) return null;
+        return switch (status.toLowerCase()) {
+            case "matched" -> TaskItemStatusEnum.MATCHED;
+            case "not_matched" -> TaskItemStatusEnum.NOT_MATCHED;
+            case "error" -> TaskItemStatusEnum.FAILED;
+            case "skipped" -> TaskItemStatusEnum.SKIPPED;
+            default -> null;
+        };
+    }
+
     // ── 工具方法 ──────────────────────────────────────────────────────
 
     /** 转换检测结果为 VO */
-    private TaskResultVO toTaskResultVO(DetectionResult r) {
+    private TaskResultVO toTaskResultVO(TaskItem item) {
         TaskResultVO vo = new TaskResultVO();
-        vo.setId(r.getResultId());
-        vo.setTaskId(r.getTaskId());
-        vo.setTaskItemId(r.getTaskItemId());
-        vo.setTemplateId(r.getTemplateId());
-        vo.setAssetId(r.getAssetId());
-        vo.setStatus(r.getStatus());
-        vo.setResponseStatusCode(r.getResponseStatusCode());
-        vo.setResponseSize(r.getResponseSize());
-        vo.setResponseSummary(r.getResponseSummary());
-        vo.setMatchedMatcher(r.getMatchedMatcher());
-        vo.setMatchedAt(r.getMatchedAt());
-        vo.setErrorMessage(r.getErrorMessage());
-        vo.setDurationMs(r.getDurationMs());
+        vo.setId(item.getItemId());
+        vo.setTaskId(item.getTaskId());
+        vo.setTaskItemId(item.getItemId());
+        vo.setTemplateId(item.getVulId());
+        vo.setAssetId(item.getAssetId());
+        vo.setStatus(item.getStatus() != null ? item.getStatus().getDescription() : "-");
+        vo.setResponseStatusCode(item.getResponseStatusCode());
+        vo.setResponseSize(item.getResponseSize());
+        vo.setResponseSummary(item.getResponseSummary());
+        vo.setMatchedMatcher(item.getMatchedMatcher());
+        vo.setMatchedAt(item.getMatchedAt());
+        vo.setErrorMessage(item.getErrorMessage());
+        vo.setDurationMs(item.getDurationMs());
         return vo;
     }
 
