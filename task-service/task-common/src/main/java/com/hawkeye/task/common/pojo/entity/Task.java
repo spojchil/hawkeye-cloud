@@ -12,11 +12,6 @@ import java.time.LocalDateTime;
 
 /**
  * 检测任务。
- * <p>
- * 状态流转: PENDING → RUNNING(拆分开始) → DONE/ERROR/CANCELLED。
- * completedItems 由 TaskProgressScheduler 每 2s 轮询 Redis 回填。
- *
- * <p>创建者账号由 BaseEntity.createBy 提供，无需额外 userId 字段。
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -35,9 +30,10 @@ public class Task extends BaseEntity {
     /** 漏洞模板ID列表（逗号分隔），前端传入 */
     private String vulIds;
 
-    /** PENDING → RUNNING → DONE / ERROR / CANCELLED */
+    /** 状态枚举 */
     private TaskStatusEnum status;
 
+    // TODO 这里是初始的输入，不是有效的检测项，
     /** 检测项总数 = 资产数 × 模板数，拆分完成后回填 */
     private Integer totalItems;
 

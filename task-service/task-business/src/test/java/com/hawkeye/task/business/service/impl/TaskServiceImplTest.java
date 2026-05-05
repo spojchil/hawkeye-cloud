@@ -44,15 +44,7 @@ class TaskServiceImplTest {
     @Mock
     private com.hawkeye.task.business.mapper.TaskItemMapper taskItemMapper;
     @Mock
-    private com.hawkeye.task.business.cache.TemplateCache templateCache;
-    @Mock
-    private com.hawkeye.task.business.feign.AssetServiceFeign assetServiceFeign;
-    @Mock
-    private com.hawkeye.task.business.mq.TaskProducerService taskProducerService;
-    @Mock
-    private com.hawkeye.task.business.mapper.DetectionResultMapper detectionResultMapper;
-    @Mock
-    private com.hawkeye.task.business.service.TaskItemPreChecker preChecker;
+    private com.hawkeye.task.business.service.impl.TaskSplitService taskSplitService;
     @Mock
     private LambdaQueryChainWrapper<Task> lambdaChain;
     @Mock
@@ -69,14 +61,11 @@ class TaskServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper,
-                templateCache, assetServiceFeign, taskProducerService, detectionResultMapper, preChecker));
+        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper, taskSplitService));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
         // stub 异步拆分，单元测试聚焦 create/getById/pageQuery/cancel 逻辑
-        try {
-            doNothing().when(taskService).splitAndDispatch(any(Task.class), anyList(), anyList());
-        } catch (Exception ignored) { }
+        doNothing().when(taskSplitService).splitAndDispatch(any(Task.class), anyList(), anyList());
 
         doReturn(lambdaChain).when(taskService).lambdaQuery();
         when(lambdaChain.eq(any(), any())).thenReturn(lambdaChain);

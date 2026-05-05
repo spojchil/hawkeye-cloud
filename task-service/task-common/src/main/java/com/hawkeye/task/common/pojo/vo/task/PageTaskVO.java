@@ -3,6 +3,7 @@ package com.hawkeye.task.common.pojo.vo.task;
 import com.hawkeye.task.common.enums.TaskStatusEnum;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
+import org.hibernate.validator.constraints.Range;
 
 import java.time.LocalDateTime;
 
@@ -14,7 +15,7 @@ public class PageTaskVO {
         @Min(value = 1, message = "页码不能小于1")
         private Integer page;
 
-        @Min(value = 1, message = "每页条数不能小于1")
+        @Range(min = 10, max = 500, message = "页条数必须在 10~500 之间")
         private Integer pageSize;
 
         /**
@@ -22,6 +23,7 @@ public class PageTaskVO {
          */
         private String taskName;
 
+        // TODO 状态为什么是模糊的？
         /**
          * 模糊查询的状态
          */

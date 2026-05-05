@@ -63,7 +63,6 @@ class TaskItemServiceImplTest {
             resp.setAssetId(item.getAssetId());
             resp.setVulId(item.getVulId());
             resp.setStatus(item.getStatus());
-            resp.setResult(item.getResult());
             return resp;
         });
     }
@@ -73,21 +72,19 @@ class TaskItemServiceImplTest {
     @Test
     @DisplayName("更新结果 — MATCHED 状态回写成功")
     void updateResultSuccess() {
-        TaskItem item = buildItem(100L, 5001L, 10L, 20L, TaskItemStatusEnum.PENDING, null);
+        TaskItem item = buildItem(100L, 5001L, 10L, 20L, TaskItemStatusEnum.PENDING);
         when(taskItemMapper.selectById(100L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
         request.setStatus(TaskItemStatusEnum.MATCHED);
-        request.setResult("{\"matched\":true,\"matcher\":\"word\"}");
 
         TaskItemVO.Response response = taskItemService.updateResult(100L, request);
 
         assertAll("回写成功",
                 () -> assertEquals(100L, response.getItemId()),
                 () -> assertEquals(5001L, response.getTaskId()),
-                () -> assertEquals(TaskItemStatusEnum.MATCHED, response.getStatus()),
-                () -> assertEquals("{\"matched\":true,\"matcher\":\"word\"}", response.getResult())
+                () -> assertEquals(TaskItemStatusEnum.MATCHED, response.getStatus())
         );
         verify(taskItemMapper).updateById((TaskItem) any());
     }
@@ -95,13 +92,12 @@ class TaskItemServiceImplTest {
     @Test
     @DisplayName("更新结果 — FAILED 状态回写（网络超时）")
     void updateResultFailed() {
-        TaskItem item = buildItem(200L, 5001L, 30L, 40L, TaskItemStatusEnum.PENDING, null);
+        TaskItem item = buildItem(200L, 5001L, 30L, 40L, TaskItemStatusEnum.PENDING);
         when(taskItemMapper.selectById(200L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
         TaskItemVO.Request request = new TaskItemVO.Request();
         request.setStatus(TaskItemStatusEnum.FAILED);
-        request.setResult("{\"error\":\"connect timeout\"}");
 
         TaskItemVO.Response response = taskItemService.updateResult(200L, request);
 
@@ -112,7 +108,7 @@ class TaskItemServiceImplTest {
     @Test
     @DisplayName("更新结果 — NOT_MATCHED 状态回写（检测未命中）")
     void updateResultNoMatch() {
-        TaskItem item = buildItem(300L, 5002L, 50L, 60L, TaskItemStatusEnum.PENDING, null);
+        TaskItem item = buildItem(300L, 5002L, 50L, 60L, TaskItemStatusEnum.PENDING);
         when(taskItemMapper.selectById(300L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
@@ -146,14 +142,13 @@ class TaskItemServiceImplTest {
     // === helper ===
 
     private TaskItem buildItem(Long itemId, Long taskId, Long assetId, Long vulId,
-                               TaskItemStatusEnum status, String result) {
+                               TaskItemStatusEnum status) {
         TaskItem item = new TaskItem();
         item.setItemId(itemId);
         item.setTaskId(taskId);
         item.setAssetId(assetId);
         item.setVulId(vulId);
         item.setStatus(status);
-        item.setResult(result);
         return item;
     }
 }

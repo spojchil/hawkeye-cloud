@@ -15,7 +15,7 @@ import java.util.List;
  */
 public interface TaskService extends IService<Task> {
 
-    /** 创建任务（异步拆分+投递） */
+    /** 创建任务（检测拆分+投递） */
     TaskVO.Response create(TaskVO.Request request);
 
     /** 查询任务详情 */
