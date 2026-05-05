@@ -413,10 +413,45 @@ async function showTaskDetail(taskId) {
     }
     html += `<p style="margin-top:12px"><b>资产IDs:</b> ${d.targetIds||'-'}</p>`;
     html += `<p><b>模板IDs:</b> ${d.vulIds||'-'}</p>`;
+
+    // 检测项列表
+    if (d.items && d.items.length > 0) {
+      html += `<h4 style="margin-top:16px;color:var(--accent)">检测项列表 (${d.items.length})</h4>`;
+      html += `<table style="font-size:12px"><thead><tr>
+        <th>项ID</th><th>资产ID</th><th>模板ID</th><th>状态</th><th>HTTP</th><th>耗时</th><th>匹配器</th><th>错误</th>
+      </tr></thead><tbody>`;
+      d.items.forEach(item => {
+        html += `<tr>
+          <td>${item.itemId}</td>
+          <td>${item.assetId}</td>
+          <td>${item.vulId}</td>
+          <td>${fmtItemStatus(item.status)}</td>
+          <td>${item.responseStatusCode||'-'}</td>
+          <td>${item.durationMs||'-'}ms</td>
+          <td>${item.matchedMatcher||'-'}</td>
+          <td>${item.errorMessage||'-'}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+    }
+
     document.getElementById('modal-content').innerHTML = html;
   } catch(e) {
     document.getElementById('modal-content').innerHTML = '<h3>错误</h3><p>' + e.message + '</p>';
   }
+}
+
+// 检测项状态格式化
+function fmtItemStatus(s) {
+  const map = {
+    '待执行': { text: '待执行', color: 'var(--muted)' },
+    '匹配': { text: '匹配', color: 'var(--green)' },
+    '未匹配': { text: '未匹配', color: 'var(--muted)' },
+    '失败': { text: '失败', color: 'var(--red)' },
+    '跳过': { text: '跳过', color: 'var(--yellow)' }
+  };
+  const item = map[s] || { text: s, color: 'var(--muted)' };
+  return `<span style="color:${item.color}">${item.text}</span>`;
 }
 
 async function showResults(taskId) {

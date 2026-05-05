@@ -320,7 +320,36 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     public TaskVO.Response getById(Long taskId) {
         Task task = getTaskOrThrow(taskId);
-        return taskMapstruct.toResponseVO(task);
+        TaskVO.Response response = taskMapstruct.toResponseVO(task);
+
+        // 查询检测项列表
+        List<TaskItem> items = taskItemMapper.selectList(
+                new LambdaQueryWrapper<TaskItem>()
+                        .eq(TaskItem::getTaskId, taskId)
+                        .eq(TaskItem::getDeletedAt, 0L)
+                        .orderByAsc(TaskItem::getItemId));
+
+        // 转换为 TaskItemDetail
+        List<TaskVO.Response.TaskItemDetail> itemDetails = items.stream()
+                .map(this::toTaskItemDetail)
+                .toList();
+        response.setItems(itemDetails);
+
+        return response;
+    }
+
+    /** 转换 TaskItem 为 TaskItemDetail */
+    private TaskVO.Response.TaskItemDetail toTaskItemDetail(TaskItem item) {
+        TaskVO.Response.TaskItemDetail detail = new TaskVO.Response.TaskItemDetail();
+        detail.setItemId(item.getItemId());
+        detail.setAssetId(item.getAssetId());
+        detail.setVulId(item.getVulId());
+        detail.setStatus(item.getStatus() != null ? item.getStatus().getDescription() : "待执行");
+        detail.setResponseStatusCode(item.getResponseStatusCode());
+        detail.setDurationMs(item.getDurationMs());
+        detail.setMatchedMatcher(item.getMatchedMatcher());
+        detail.setErrorMessage(item.getErrorMessage());
+        return detail;
     }
 
     @LogExecutionTime("任务分页查询")
