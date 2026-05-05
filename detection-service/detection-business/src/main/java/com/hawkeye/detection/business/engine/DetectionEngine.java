@@ -147,7 +147,12 @@ public class DetectionEngine {
                 return httpExecutor.execute(config, vars);
             }
         } catch (IOException e) {
-            throw new RuntimeException("HTTP 请求失败: " + e.getMessage(), e);
+            // 改进错误消息：使用异常类名而不是可能为 null 的 getMessage
+            String errorMsg = e.getMessage();
+            if (errorMsg == null || errorMsg.isEmpty()) {
+                errorMsg = e.getClass().getSimpleName();
+            }
+            throw new RuntimeException("HTTP 请求失败: " + errorMsg, e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("HTTP 请求被中断", e);

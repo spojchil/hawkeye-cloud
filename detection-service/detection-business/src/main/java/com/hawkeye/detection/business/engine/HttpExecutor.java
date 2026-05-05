@@ -203,9 +203,38 @@ public class HttpExecutor {
                 : HttpRequest.BodyPublishers.noBody();
         builder.method(method, bodyPublisher);
 
-        // 发送请求
+        // 发送请求（带 HTTPS 自动降级）
         long start = System.currentTimeMillis();
-        HttpResponse<String> response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try {
+            response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (SSLException e) {
+            // HTTPS 失败，尝试 HTTP 降级
+            if (rawUri.getScheme() != null && rawUri.getScheme().equalsIgnoreCase("https")) {
+                log.warn("HTTPS 请求失败，尝试 HTTP 降级: {}", e.getMessage());
+                URI httpUri = buildHttpUri(rawUri);
+                HttpRequest.Builder httpBuilder = HttpRequest.newBuilder()
+                        .uri(httpUri)
+                        .timeout(REQUEST_TIMEOUT)
+                        .method(method, bodyPublisher);
+                // 重新设置 Header
+                for (int j = 1; j < lines.length; j++) {
+                    String line = lines[j].trim();
+                    if (line.isEmpty()) break;
+                    int colon = line.indexOf(':');
+                    if (colon > 0) {
+                        String headerName = line.substring(0, colon).trim();
+                        String headerValue = line.substring(colon + 1).trim();
+                        if (!headerName.equalsIgnoreCase("Host")) {
+                            httpBuilder.header(headerName, headerValue);
+                        }
+                    }
+                }
+                response = CLIENT.send(httpBuilder.build(), HttpResponse.BodyHandlers.ofString());
+            } else {
+                throw e;
+            }
+        }
         long duration = System.currentTimeMillis() - start;
 
         return buildResponseContext(response, duration);
