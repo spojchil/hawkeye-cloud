@@ -15,13 +15,13 @@ public interface VulMapstruct {
 
     VulVO.Response toResponseVO(VulTemplate template);
 
-    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "templateId", ignore = true)
     @Mapping(target = "tenantId", ignore = true)
     @Mapping(target = "createTime", ignore = true)
     @Mapping(target = "updateTime", ignore = true)
     @Mapping(target = "createBy", ignore = true)
     @Mapping(target = "updateBy", ignore = true)
-    @Mapping(target = "deleted", ignore = true)
+    @Mapping(target = "deletedAt", ignore = true)
     VulTemplate toEntity(VulVO.Request request);
 
     VulCategoryVO.Response toCategoryVO(VulCategory category);
@@ -32,6 +32,6 @@ public interface VulMapstruct {
     @Mapping(target = "updateTime", ignore = true)
     @Mapping(target = "createBy", ignore = true)
     @Mapping(target = "updateBy", ignore = true)
-    @Mapping(target = "deleted", ignore = true)
+    @Mapping(target = "deletedAt", ignore = true)
     VulCategory toCategoryEntity(VulCategoryVO.Request request);
 }
