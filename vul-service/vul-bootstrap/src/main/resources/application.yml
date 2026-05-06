@@ -30,9 +30,9 @@ spring:
 
 logging:
   level:
-    com.hawkeye.vul.business.mapper: debug
-    com.hawkeye.vul.business.service: info
-    com.hawkeye.vul.api.controller: debug
+    com.hawkeye.vul.business.mapper: warn
+    com.hawkeye.vul.business.service: warn
+    com.hawkeye.vul.api.controller: warn
 
 # ★ MyBatis-Plus 配置要点：
 #   - 枚举处理器 MybatisEnumTypeHandler 自动处理 IEnum 实现类
@@ -45,11 +45,6 @@ mybatis-plus:
     default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.hawkeye.vul.common.pojo.entity
-  global-config:
-    db-config:
-      logic-delete-field: deleted
-      logic-delete-value: 1
-      logic-not-delete-value: 0
 
 server:
   port: ${SERVER_PORT:8004}

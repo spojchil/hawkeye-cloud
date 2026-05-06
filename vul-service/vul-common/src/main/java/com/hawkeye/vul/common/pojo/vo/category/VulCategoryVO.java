@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 public class VulCategoryVO {
 
     @Data
@@ -14,6 +16,8 @@ public class VulCategoryVO {
 
         private Long parentId;
 
+        private Integer sortOrder;
+
         @Size(max = 500, message = "分类描述最长500个字符")
         private String description;
     }
@@ -23,6 +27,9 @@ public class VulCategoryVO {
         private Long categoryId;
         private String name;
         private Long parentId;
+        private Integer sortOrder;
         private String description;
+        private Long templateCount;
+        private List<Response> children;
     }
 }

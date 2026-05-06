@@ -1,7 +1,7 @@
 package com.hawkeye.asset.business.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.hawkeye.asset.business.mapstruct.AssetCategoryMapstruct;
@@ -41,8 +41,6 @@ class AssetCategoryServiceImplTest {
     private AssetCategoryMappingMapper mappingMapper;
     @Mock
     private AssetCategoryMapstruct categoryMapstruct;
-    @Mock
-    private LambdaQueryChainWrapper<AssetCategory> lambdaChain;
 
     private AssetCategoryServiceImpl categoryService;
 
@@ -56,16 +54,8 @@ class AssetCategoryServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        /*
-         * MyBatis-Plus 的 lambdaQuery() 会对 mapper 做代理元数据自省，
-         * 无法用 Mockito 直接 mock 通过，所以 stub 掉整个 lambdaQuery() 链。
-         * 必须用 spy 才能劫持 lambdaQuery() 方法的调用。
-         */
-        categoryService = spy(new AssetCategoryServiceImpl(categoryMapstruct, mappingMapper));
+        categoryService = new AssetCategoryServiceImpl(categoryMapstruct, mappingMapper);
         ReflectionTestUtils.setField(categoryService, "baseMapper", categoryMapper);
-
-        doReturn(lambdaChain).when(categoryService).lambdaQuery();
-        when(lambdaChain.eq(any(), any())).thenReturn(lambdaChain);
 
         when(categoryMapstruct.toEntity(any(CategoryVO.Request.class))).thenAnswer(inv -> {
             CategoryVO.Request req = inv.getArgument(0);
@@ -90,10 +80,10 @@ class AssetCategoryServiceImplTest {
     // === 查询分类列表 listCategories ===
 
     @Test
-    @DisplayName("查询顶级分类 — parentId 为 null 时只查 parentId IS NULL 的分类")
+    @DisplayName("查询顶级分类 — parentId 为 null 时查 parentId = 0 的分类")
     void listTopLevelCategories() {
-        AssetCategory c1 = buildCategory(1L, "Web 应用", null);
-        AssetCategory c2 = buildCategory(2L, "API 服务", null);
+        AssetCategory c1 = buildCategory(1L, "Web 应用", 0L);
+        AssetCategory c2 = buildCategory(2L, "API 服务", 0L);
         when(categoryMapper.selectList(any())).thenReturn(List.of(c1, c2));
 
         List<CategoryVO.Response> result = categoryService.listCategories(null, null);
@@ -102,7 +92,7 @@ class AssetCategoryServiceImplTest {
                 () -> assertEquals(2, result.size()),
                 () -> assertEquals("Web 应用", result.get(0).getName()),
                 () -> assertEquals("API 服务", result.get(1).getName()),
-                () -> assertNull(result.get(0).getParentId(), "顶级分类的 parentId 应为 null")
+                () -> assertEquals(0L, result.get(0).getParentId(), "顶级分类的 parentId 应为 0")
         );
     }
 
@@ -125,7 +115,7 @@ class AssetCategoryServiceImplTest {
     @Test
     @DisplayName("查询分类 — 按名称模糊筛选")
     void listWithNameFilter() {
-        AssetCategory c1 = buildCategory(1L, "Web 安全", null);
+        AssetCategory c1 = buildCategory(1L, "Web 安全", 0L);
         when(categoryMapper.selectList(any())).thenReturn(List.of(c1));
 
         List<CategoryVO.Response> result = categoryService.listCategories(null, "Web");
@@ -147,7 +137,7 @@ class AssetCategoryServiceImplTest {
     // === 创建分类 create ===
 
     @Test
-    @DisplayName("创建顶级分类 — parentId 为 null")
+    @DisplayName("创建顶级分类 — parentId 为 null 时默认设为 0")
     void createCategory() {
         CategoryVO.Request request = new CategoryVO.Request();
         request.setName("新分类");
@@ -160,7 +150,7 @@ class AssetCategoryServiceImplTest {
         assertAll("创建分类",
                 () -> assertEquals("新分类", response.getName()),
                 () -> assertEquals("描述", response.getDescription()),
-                () -> assertNull(response.getParentId())
+                () -> assertEquals(0L, response.getParentId(), "顶级分类的 parentId 应为 0")
         );
         verify(categoryMapper).insert((AssetCategory) any());
     }
@@ -187,13 +177,13 @@ class AssetCategoryServiceImplTest {
         CategoryVO.Request request = new CategoryVO.Request();
         request.setName("新名称");
         request.setDescription("新描述");
-        request.setParentId(999L); // 不允许修改父分类，应被忽略
+        request.setParentId(999L);
 
         when(categoryMapper.update(isNull(), any())).thenReturn(1);
 
         AssetCategory updated = buildCategory(1L, "新名称", 5L);
         updated.setDescription("新描述");
-        when(categoryMapper.selectById(1L)).thenReturn(updated);
+        when(categoryMapper.selectOne(any())).thenReturn(updated);
 
         CategoryVO.Response response = categoryService.update(1L, request);
 
@@ -203,7 +193,7 @@ class AssetCategoryServiceImplTest {
                 () -> assertEquals(5L, response.getParentId(),
                         "parentId 应保持原值，未被修改")
         );
-        verify(categoryMapper).selectById(1L);
+        verify(categoryMapper).selectOne(any());
     }
 
     @Test
@@ -236,32 +226,33 @@ class AssetCategoryServiceImplTest {
                 () -> assertEquals("至少需要提供一个更新字段", ex.getMessage())
         );
         verify(categoryMapper, never()).update(any(), any());
-        verify(categoryMapper, never()).selectById(anyLong());
+        verify(categoryMapper, never()).selectOne(any());
     }
 
     // === 删除分类 delete ===
 
     @Test
-    @DisplayName("删除分类 — 无子分类且无资产关联，删除成功")
+    @DisplayName("删除分类 — 无子分类且无资产关联，软删除成功")
     void deleteCategorySuccess() {
         AssetCategory category = buildCategory(1L, "可删除", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
-        when(lambdaChain.count()).thenReturn(0L);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
+        when(categoryMapper.selectCount(any())).thenReturn(0L);
         when(mappingMapper.selectCount(any())).thenReturn(0L);
-        when(categoryMapper.deleteById(1L)).thenReturn(1);
+        when(categoryMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         categoryService.delete(1L);
 
-        verify(categoryMapper).selectById(1L);
-        verify(lambdaChain).count();
+        verify(categoryMapper).selectOne(any());
+        verify(categoryMapper).selectCount(any());
         verify(mappingMapper).selectCount(any());
-        verify(categoryMapper).deleteById(1L);
+        verify(categoryMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(categoryMapper, never()).deleteById(anyLong());
     }
 
     @Test
     @DisplayName("删除分类 — 分类不存在，抛 ApiException（404），不执行后续检查")
     void deleteCategoryNotFound() {
-        when(categoryMapper.selectById(anyLong())).thenReturn(null);
+        when(categoryMapper.selectOne(any())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> categoryService.delete(999L));
@@ -270,17 +261,16 @@ class AssetCategoryServiceImplTest {
                 () -> assertEquals(CommonErrorCode.RESOURCE_NOT_FOUND.getCode(), ex.getCode()),
                 () -> assertEquals("分类不存在", ex.getMessage())
         );
-        verify(lambdaChain, never()).count();
+        verify(categoryMapper, never()).selectCount(any());
         verify(mappingMapper, never()).selectCount(any());
-        verify(categoryMapper, never()).deleteById(anyLong());
     }
 
     @Test
     @DisplayName("删除分类 — 存在子分类，抛 ApiException（403），不执行删除也不检查资产关联")
     void deleteCategoryWithChildren() {
         AssetCategory category = buildCategory(1L, "有子分类", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
-        when(lambdaChain.count()).thenReturn(5L);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
+        when(categoryMapper.selectCount(any())).thenReturn(5L);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> categoryService.delete(1L));
@@ -289,7 +279,6 @@ class AssetCategoryServiceImplTest {
                 () -> assertEquals(CommonErrorCode.OPERATION_DENIED.getCode(), ex.getCode()),
                 () -> assertEquals("该分类下存在子分类，无法删除", ex.getMessage())
         );
-        verify(categoryMapper, never()).deleteById(anyLong());
         verify(mappingMapper, never()).selectCount(any());
     }
 
@@ -297,8 +286,8 @@ class AssetCategoryServiceImplTest {
     @DisplayName("删除分类 — 存在资产关联，抛 ApiException（403），不执行删除")
     void deleteCategoryWithMappings() {
         AssetCategory category = buildCategory(1L, "有资产关联", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
-        when(lambdaChain.count()).thenReturn(0L);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
+        when(categoryMapper.selectCount(any())).thenReturn(0L);
         when(mappingMapper.selectCount(any())).thenReturn(3L);
 
         ApiException ex = assertThrows(ApiException.class,
@@ -308,7 +297,7 @@ class AssetCategoryServiceImplTest {
                 () -> assertEquals(CommonErrorCode.OPERATION_DENIED.getCode(), ex.getCode()),
                 () -> assertEquals("该分类下存在资产关联，无法删除", ex.getMessage())
         );
-        verify(categoryMapper, never()).deleteById(anyLong());
+        verify(categoryMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
     }
 
     // === 添加资产到分类 addAssets ===
@@ -317,7 +306,7 @@ class AssetCategoryServiceImplTest {
     @DisplayName("添加资产 — 全部是新关联，逐个插入，返回新增数量")
     void addAssetsAllNew() {
         AssetCategory category = buildCategory(1L, "测试分类", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
         when(mappingMapper.selectList(any())).thenReturn(Collections.emptyList());
         when(mappingMapper.insert(any(AssetCategoryMapping.class))).thenReturn(1);
 
@@ -331,7 +320,7 @@ class AssetCategoryServiceImplTest {
     @DisplayName("添加资产 — 部分已存在，去重后仅插入新的，返回新增数量")
     void addAssetsWithExisting() {
         AssetCategory category = buildCategory(1L, "测试分类", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
 
         AssetCategoryMapping existing1 = new AssetCategoryMapping();
         existing1.setAssetId(10L);
@@ -350,7 +339,7 @@ class AssetCategoryServiceImplTest {
     @DisplayName("添加资产 — 重复 assetId 去重：传入 [10, 10] 只插入一次")
     void addAssetsInputDuplicate() {
         AssetCategory category = buildCategory(1L, "测试分类", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
         when(mappingMapper.selectList(any())).thenReturn(Collections.emptyList());
         when(mappingMapper.insert(any(AssetCategoryMapping.class))).thenReturn(1);
 
@@ -363,7 +352,7 @@ class AssetCategoryServiceImplTest {
     @Test
     @DisplayName("添加资产 — 分类不存在，抛 ApiException（404），不执行插入")
     void addAssetsCategoryNotFound() {
-        when(categoryMapper.selectById(anyLong())).thenReturn(null);
+        when(categoryMapper.selectOne(any())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> categoryService.addAssets(999L, List.of(1L, 2L)));
@@ -380,7 +369,7 @@ class AssetCategoryServiceImplTest {
     @DisplayName("添加资产 — 传入空列表，返回 0，不执行插入")
     void addAssetsEmptyList() {
         AssetCategory category = buildCategory(1L, "测试分类", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
         when(mappingMapper.selectList(any())).thenReturn(Collections.emptyList());
 
         int count = categoryService.addAssets(1L, Collections.emptyList());
@@ -393,7 +382,7 @@ class AssetCategoryServiceImplTest {
     @DisplayName("添加资产 — 所有 assetId 都已存在，跳过全部，返回 0")
     void addAssetsAllExisting() {
         AssetCategory category = buildCategory(1L, "测试分类", null);
-        when(categoryMapper.selectById(1L)).thenReturn(category);
+        when(categoryMapper.selectOne(any())).thenReturn(category);
 
         AssetCategoryMapping existing1 = new AssetCategoryMapping();
         existing1.setAssetId(10L);
@@ -410,24 +399,24 @@ class AssetCategoryServiceImplTest {
     // === 移除资产关联 removeAssets ===
 
     @Test
-    @DisplayName("移除资产关联 — 按分类+资产ID列表删除，返回删除行数")
+    @DisplayName("移除资产关联 — 软删除，按分类+资产ID逐条更新 deletedAt")
     void removeAssets() {
-        when(mappingMapper.delete(any())).thenReturn(3);
+        when(mappingMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1, 1, 1);
 
         int count = categoryService.removeAssets(1L, List.of(10L, 20L, 30L));
 
         assertEquals(3, count);
-        verify(mappingMapper).delete(any());
+        verify(mappingMapper, times(3)).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(mappingMapper, never()).delete(any());
     }
 
     @Test
     @DisplayName("移除资产关联 — 空列表，返回 0")
     void removeAssetsEmptyList() {
-        when(mappingMapper.delete(any())).thenReturn(0);
-
         int count = categoryService.removeAssets(1L, Collections.emptyList());
 
         assertEquals(0, count);
+        verify(mappingMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
     }
 
     // === helper ===

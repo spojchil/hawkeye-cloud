@@ -4,9 +4,8 @@ target/
 !**/src/test/**/target/
 .kotlin
 **/ddocs
-AGENTS.md
-CODE_REVIEW.md
-
+ddocs
+.claude
 ### IntelliJ IDEA ###
 .idea/
 **/*.iml

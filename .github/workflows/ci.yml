@@ -7,7 +7,7 @@ on:
       - '**/src/**'
       - '**/pom.xml'
       - '.github/workflows/**'
-      - 'Dockerfile'
+      - '**/Dockerfile'
       - 'docker-compose.yml'
   pull_request:
     branches: [main]
@@ -15,7 +15,7 @@ on:
       - '**/src/**'
       - '**/pom.xml'
       - '.github/workflows/**'
-      - 'Dockerfile'
+      - '**/Dockerfile'
       - 'docker-compose.yml'
 
 jobs:

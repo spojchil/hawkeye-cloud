@@ -10,8 +10,10 @@ services:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./auth-service/account.sql:/docker-entrypoint-initdb.d/01-account.sql
-      - ./asset-service/asset-service.sql:/docker-entrypoint-initdb.d/02-asset.sql
+      - ./docs/sql/认证服务.sql:/docker-entrypoint-initdb.d/01-auth.sql
+      - ./docs/sql/资产服务.sql:/docker-entrypoint-initdb.d/02-asset.sql
+      - ./docs/sql/漏洞管理服务.sql:/docker-entrypoint-initdb.d/03-vul.sql
+      - ./docs/sql/任务调度服务.sql:/docker-entrypoint-initdb.d/04-task.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -51,7 +53,52 @@ services:
     networks:
       - hawkeye-net
 
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.3
+    container_name: hawkeye-rocketmq-namesrv
+    command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+    networks:
+      - hawkeye-net
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.3
+    container_name: hawkeye-rocketmq-broker
+    command: sh mqbroker -n rocketmq-namesrv:9876
+    ports:
+      - "10911:10911"
+      - "10909:10909"
+    depends_on:
+      - rocketmq-namesrv
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+    networks:
+      - hawkeye-net
+
   # ==================== 微服务 ====================
+  gateway:
+    build: ./gateway-service/gateway-bootstrap
+    image: ghcr.io/spojchil/hawkeye-gateway:latest
+    container_name: hawkeye-gateway
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: 123456
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      SERVER_PORT: 8001
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - hawkeye-net
+
   auth-service:
     build: ./auth-service/auth-bootstrap
     image: ghcr.io/spojchil/hawkeye-auth:latest
@@ -129,25 +176,73 @@ services:
     networks:
       - hawkeye-net
 
-  gateway:
-    build: ./gateway-service/gateway-bootstrap
-    image: ghcr.io/spojchil/hawkeye-gateway:latest
-    container_name: hawkeye-gateway
+  task-service:
+    build: ./task-service/task-bootstrap
+    image: ghcr.io/spojchil/hawkeye-task:latest
+    container_name: hawkeye-task
     environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hawkeye
+      DB_USERNAME: root
+      DB_PASSWORD: root
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: 123456
       NACOS_HOST: nacos
       NACOS_PORT: 8848
-      SERVER_PORT: 8001
+      ROCKETMQ_HOST: rocketmq-namesrv
+      ROCKETMQ_PORT: 9876
+      SERVER_PORT: 8005
     ports:
-      - "8000:8001"
+      - "8005:8005"
     depends_on:
+      mysql:
+        condition: service_healthy
       redis:
         condition: service_healthy
       nacos:
         condition: service_healthy
     restart: on-failure
+    networks:
+      - hawkeye-net
+
+  detection-service:
+    build: ./detection-service/detection-bootstrap
+    image: ghcr.io/spojchil/hawkeye-detection:latest
+    container_name: hawkeye-detection
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hawkeye
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: 123456
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      ROCKETMQ_HOST: rocketmq-namesrv
+      ROCKETMQ_PORT: 9876
+      SERVER_PORT: 8006
+    ports:
+      - "8006:8006"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - hawkeye-net
+
+  web-admin:
+    build: ./web-admin
+    container_name: hawkeye-web-admin
+    ports:
+      - "3000:3000"
     networks:
       - hawkeye-net
 

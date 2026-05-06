@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface VulCategoryService extends IService<VulCategory> {
 
-    List<VulCategoryVO.Response> listCategories(Long parentId, String name);
+    List<VulCategoryVO.Response> tree(Long parentId);
 
     VulCategoryVO.Response create(VulCategoryVO.Request request);
 
