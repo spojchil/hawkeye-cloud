@@ -238,6 +238,14 @@ services:
     networks:
       - hawkeye-net
 
+  web-admin:
+    build: ./web-admin
+    container_name: hawkeye-web-admin
+    ports:
+      - "3000:3000"
+    networks:
+      - hawkeye-net
+
 networks:
   hawkeye-net:
     driver: bridge

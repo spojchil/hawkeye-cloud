@@ -12,6 +12,7 @@ mvn clean package -DskipTests
 docker compose up -d --build
 
 # 网关入口：http://localhost:8001
+# 管理界面：http://localhost:3000
 # Nacos 控制台：http://localhost:8848/nacos
 ```
 
@@ -27,6 +28,7 @@ docker compose up -d --build
 | vul-service | 8004 | 完成 | 漏洞模板管理：CRUD + YAML 导入 + 分类 + 标签 |
 | task-service | 8005 | 完成 | 任务调度引擎：提交 → 拆分 → RocketMQ 分发 → 轮询进度 |
 | detection-service | 8006+ | 完成 | 检测 Worker：HTTP 探测 + 匹配引擎，可水平扩展 |
+| web-admin | 3000 | 完成 | 前端管理界面（SPA 单页） |
 | tenant-service | — | 规划中 | 多租户管理 |
 | audit-service | — | 规划中 | 日志审计服务 |
 
