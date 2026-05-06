@@ -61,7 +61,7 @@ class TaskServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper, taskSplitService));
+        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper, taskSplitService, null));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
         // stub 异步拆分，单元测试聚焦 create/getById/pageQuery/cancel 逻辑
