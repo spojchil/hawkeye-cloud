@@ -22,6 +22,9 @@ public class TaskVO {
         private List<Long> templateIds;
 
         private Integer priority;
+
+        /** 幂等键：同一 key 重复提交返回已有任务 ID */
+        private String idempotencyKey;
     }
 
     @Data

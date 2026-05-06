@@ -4,7 +4,9 @@ import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.constant.HeaderConstants;
 import com.common.utils.context.RequestContext;
 import com.hawkeye.detection.business.engine.DetectionEngine;
+import com.hawkeye.detection.business.mapper.TaskItemResultMapper;
 import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
+import com.hawkeye.detection.common.pojo.entity.TaskItemResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
@@ -31,6 +33,12 @@ import java.util.Map;
  *   <li>数据缺失类错误不应抛异常（避免无意义重试）</li>
  * </ul>
  * <p>
+ * 幂等性：
+ * <ul>
+ *   <li>消费前查询 task_item 表状态，已终态则跳过</li>
+ *   <li>防止 RocketMQ 重投导致重复检测</li>
+ * </ul>
+ * <p>
  * 租户上下文：
  * <ul>
  *   <li>从消息中提取 tenantId，设置到 RequestContext</li>
@@ -48,6 +56,7 @@ import java.util.Map;
 public class TaskItemConsumer implements RocketMQListener<TaskItemMessage> {
 
     private final DetectionEngine detectionEngine;
+    private final TaskItemResultMapper taskItemResultMapper;
 
     /**
      * 消费消息。
@@ -61,10 +70,16 @@ public class TaskItemConsumer implements RocketMQListener<TaskItemMessage> {
                 message.getTaskId(), message.getItemId(),
                 message.getTemplateId(), message.getAssetHost());
 
-        // 设置租户上下文
-        // ★ ThreadLocal 在当前单线程消费场景下安全。
-        //    如果后续引入虚拟线程并发执行 detectionEngine.execute()，
-        //    需将 tenantId 显式传递给新线程，或使用 InheritableThreadLocal。
+        if (message.getItemId() == null) {
+            log.warn("消息缺少 itemId，无法处理 taskId={}", message.getTaskId());
+            return;
+        }
+
+        if (isAlreadyProcessed(message.getItemId())) {
+            log.info("检测项已处理，跳过 itemId={}", message.getItemId());
+            return;
+        }
+
         if (message.getTenantId() != null) {
             RequestContext.setHeaders(Map.of(
                     HeaderConstants.HEADER_TENANT_ID, String.valueOf(message.getTenantId())));
@@ -75,5 +90,13 @@ public class TaskItemConsumer implements RocketMQListener<TaskItemMessage> {
         } finally {
             RequestContext.clear();
         }
+    }
+
+    private boolean isAlreadyProcessed(Long itemId) {
+        TaskItemResult existing = taskItemResultMapper.selectById(itemId);
+        if (existing == null || existing.getStatus() == null) {
+            return false;
+        }
+        return existing.getStatus() != 0;
     }
 }

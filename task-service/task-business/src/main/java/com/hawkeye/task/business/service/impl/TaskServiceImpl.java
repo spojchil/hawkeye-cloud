@@ -22,10 +22,12 @@ import com.hawkeye.task.common.pojo.vo.task.TaskResultVO;
 import com.hawkeye.task.common.pojo.vo.task.TaskVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -43,6 +45,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     private final TaskMapstruct taskMapstruct;
     private final TaskItemMapper taskItemMapper;
     private final TaskSplitService taskSplitService;
+    private final StringRedisTemplate redisTemplate;
 
     // ── 创建任务 ──────────────────────────────────────────────────────
 
@@ -50,6 +53,16 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     @Transactional
     public TaskVO.Response create(TaskVO.Request request) {
+        // 幂等性检查：同一幂等键返回已有任务
+        if (StrUtil.isNotBlank(request.getIdempotencyKey())) {
+            String key = "task:idempotent:" + request.getIdempotencyKey();
+            String existingTaskId = redisTemplate.opsForValue().get(key);
+            if (existingTaskId != null) {
+                log.info("幂等请求，返回已有任务 taskId={}", existingTaskId);
+                return getById(Long.valueOf(existingTaskId));
+            }
+        }
+
         // 1. 构建任务实体
         Task task = taskMapstruct.toEntity(request);
         task.setStatus(TaskStatusEnum.PENDING);
@@ -61,7 +74,13 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         // 2. 持久化
         save(task);
 
-        // 3. 委托异步服务拆分+投递
+        // 3. 缓存幂等键 → taskId（1 小时过期）
+        if (StrUtil.isNotBlank(request.getIdempotencyKey())) {
+            String key = "task:idempotent:" + request.getIdempotencyKey();
+            redisTemplate.opsForValue().set(key, String.valueOf(task.getTaskId()), Duration.ofHours(1));
+        }
+
+        // 4. 委托异步服务拆分+投递
         taskSplitService.splitAndDispatch(task, request.getAssetIds(), request.getTemplateIds());
 
         return taskMapstruct.toResponseVO(task);

@@ -124,19 +124,23 @@ public class ResultWriter {
     }
 
     /**
-     * 更新 Redis 计数。
+     * 更新 Redis 计数（幂等）。
      * <p>
-     * key 格式：task:{taskId}:{status}
-     * TTL: 24 小时（避免 Redis 内存泄漏）
+     * 使用 SETNX 确保同一 itemId 只计数一次，防止重复消费导致计数膨胀。
+     * key 格式：task:{taskId}:{status}，TTL 24 小时。
      */
     private void updateRedisCounter(DetectionResultUpdate result) {
         try {
-            String key = "task:" + result.taskId() + ":" + result.status();
-            redisTemplate.opsForValue().increment(key);
-            // 设置过期时间：24 小时
-            redisTemplate.expire(key, java.time.Duration.ofHours(24));
+            String processedKey = "task:processed:" + result.taskItemId();
+            Boolean firstTime = redisTemplate.opsForValue()
+                    .setIfAbsent(processedKey, "1", java.time.Duration.ofHours(24));
+            if (Boolean.TRUE.equals(firstTime)) {
+                String counterKey = "task:" + result.taskId() + ":" + result.status();
+                redisTemplate.opsForValue().increment(counterKey);
+                redisTemplate.expire(counterKey, java.time.Duration.ofHours(24));
+            }
         } catch (Exception e) {
-            log.warn("Redis INCR 失败 taskId={}: {}", result.taskId(), e.getMessage());
+            log.warn("Redis 计数更新失败 taskId={}, itemId={}: {}", result.taskId(), result.taskItemId(), e.getMessage());
         }
     }
 
