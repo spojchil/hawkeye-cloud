@@ -2,7 +2,6 @@
 
 分布式漏洞检测平台 —— 基于 Java 21 + Spring Cloud 微服务架构，支持 SaaS 多租户与私有化部署。
 
-> 项目从 0 到 1 独立开发。
 
 ## 技术栈
 
@@ -14,7 +13,7 @@
 | ORM | MyBatis-Plus | 3.5.15 |
 | 数据库 | MySQL + Druid | 9.1.0 |
 | 缓存 | Redis / Redisson / Lettuce | - |
-| 消息队列 | Apache RocketMQ | 5.3.3 |
+| 消息队列 | Apache RocketMQ (Spring Boot Starter) | 2.3.2 |
 | 分布式事务 | Seata | 2.1.0 |
 | 流量控制 | Sentinel | 2.0.2 |
 | API 文档 | Knife4j | 4.4.0 |
@@ -251,6 +250,12 @@ graph LR
 - [模块说明](docs/模块说明.md)
 - [任务调度系统架构](docs/任务调度系统架构.md)
 
+## 漏洞模板库
+
+本平台使用 [projectdiscovery/nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) 的 HTTP 模板库，平台上线即可获得 **10,000+** 现成检测模板，覆盖 CVE、信息泄露、配置错误、未授权访问等主流漏洞类型。
+
 ## 许可证
 
-此项目目前仅用于学习与展示。
+本项目基于 [MIT License](LICENSE) 开源。
+
+nuclei-templates 模板库同样基于 [MIT License](https://github.com/projectdiscovery/nuclei-templates/blob/main/LICENSE.md) 授权使用。
