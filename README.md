@@ -8,8 +8,8 @@
 # 打包
 mvn clean package -DskipTests
 
-# Docker Compose 一键启动（MySQL + Redis + Nacos + 所有微服务）
-docker compose up -d
+# Docker Compose 一键启动（MySQL + Redis + Nacos + RocketMQ + 所有微服务）
+docker compose up -d --build
 
 # 网关入口：http://localhost:8000
 # Nacos 控制台：http://localhost:8848/nacos
@@ -90,7 +90,6 @@ hawkeye-cloud/
 | 资产服务 | [SQL](docs/sql/资产服务.sql) |
 | 漏洞管理服务 | [SQL](docs/sql/漏洞管理服务.sql) |
 | 任务调度服务 | [SQL](docs/sql/任务调度服务.sql) |
-| 任务服务迁移 | [SQL](docs/sql/任务服务-迁移v3到v4.sql) |
 
 ## 漏洞模板库
 
