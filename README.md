@@ -11,7 +11,7 @@ mvn clean package -DskipTests
 # Docker Compose 一键启动（MySQL + Redis + Nacos + RocketMQ + 所有微服务）
 docker compose up -d --build
 
-# 网关入口：http://localhost:8000
+# 网关入口：http://localhost:8001
 # Nacos 控制台：http://localhost:8848/nacos
 ```
 
