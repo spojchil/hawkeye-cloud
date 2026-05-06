@@ -1,8 +1,8 @@
 package com.hawkeye.task.business.cache;
 
 import com.alibaba.fastjson2.JSON;
-import com.common.utils.context.RequestContext;
-import com.common.utils.constant.HeaderConstants;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.hawkeye.task.business.config.TaskConfig;
 import com.hawkeye.task.business.feign.VulServiceFeign;
 import com.hawkeye.task.common.pojo.dto.TemplateDetectConfig;
@@ -21,7 +21,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 模板检测配置缓存。
- * <p>
  * L1 Caffeine + L2 Redis，Feign → VulTemplateBrief → 修剪 → TemplateDetectConfig。
  */
 @Slf4j
@@ -30,23 +29,34 @@ public class TemplateCache {
 
     private static final String REDIS_PREFIX = "vul:template:";
 
+    /** 缓存实体，带逻辑过期实体 */
     private record CacheEntry<T>(T data, long logicalExpireAt) {
         static <T> CacheEntry<T> of(T data, Duration logicalTtl) {
             return new CacheEntry<>(data, System.currentTimeMillis() + logicalTtl.toMillis());
         }
-        boolean logicallyExpired() { return System.currentTimeMillis() > logicalExpireAt; }
+
+        boolean logicallyExpired() {
+            return System.currentTimeMillis() > logicalExpireAt;
+        }
     }
 
+    /** 空值哨兵，用于判断是否为NULL，防护缓存穿透 */
     private static final TemplateDetectConfig NULL_SENTINEL = new TemplateDetectConfig();
 
     private final VulServiceFeign vulServiceFeign;
     private final StringRedisTemplate redisTemplate;
-    private final com.github.benmanes.caffeine.cache.Cache<Long, CacheEntry<TemplateDetectConfig>> caffeineCache;
+
+    /** L1 缓存 */
+    private final Cache<Long, CacheEntry<TemplateDetectConfig>> caffeineCache;
     private final ExecutorService refreshExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
+    /** 逻辑过期 TTL（秒），过期后返回旧值 + 异步刷新 */
     private final Duration logicalTtl;
-    private final Duration physicalTtl;
+
+    /** 穿透保护：空值缓存 TTL（秒） */
     private final Duration nullTtl;
+
+    /** 防雪崩随机偏移上限（秒） */
     private final long jitterSeconds;
 
     public TemplateCache(VulServiceFeign vulServiceFeign, StringRedisTemplate redisTemplate,
@@ -54,12 +64,13 @@ public class TemplateCache {
         this.vulServiceFeign = vulServiceFeign;
         this.redisTemplate = redisTemplate;
         this.logicalTtl = Duration.ofSeconds(config.getCache().getLogicalTtlSeconds());
-        this.physicalTtl = Duration.ofSeconds(config.getCache().getPhysicalTtlSeconds());
         this.nullTtl = Duration.ofSeconds(config.getCache().getNullTtlSeconds());
         this.jitterSeconds = config.getCache().getJitterSeconds();
-        this.caffeineCache = com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+
+        /* 构造缓存，带有最大项和随机物理过期时间限制的 */
+        this.caffeineCache = Caffeine.newBuilder()
                 .maximumSize(config.getCache().getMaxSize())
-                .expireAfterWrite(randomTtl(physicalTtl))
+                .expireAfterWrite(randomTtl(Duration.ofSeconds(config.getCache().getPhysicalTtlSeconds())))
                 .build();
     }
 
@@ -126,7 +137,8 @@ public class TemplateCache {
                     try {
                         redisTemplate.opsForValue().set(
                                 REDIS_PREFIX + templateId, JSON.toJSONString(cfg), randomTtl(logicalTtl));
-                    } catch (Exception ignored) { }
+                    } catch (Exception ignored) {
+                    }
                 }
             } catch (Exception e) {
                 log.warn("异步刷新缓存失败 templateId={}: {}", templateId, e.getMessage());

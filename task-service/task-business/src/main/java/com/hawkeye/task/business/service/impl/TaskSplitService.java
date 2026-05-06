@@ -1,5 +1,12 @@
 package com.hawkeye.task.business.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.common.utils.constant.HeaderConstants;
+import com.common.utils.context.RequestContext;
+import com.common.utils.response.ApiException;
+import com.common.utils.response.CommonErrorCode;
+import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
 import com.hawkeye.task.business.cache.TemplateCache;
 import com.hawkeye.task.business.feign.AssetServiceFeign;
 import com.hawkeye.task.business.mapper.TaskItemMapper;
@@ -12,11 +19,6 @@ import com.hawkeye.task.common.pojo.dto.AssetBrief;
 import com.hawkeye.task.common.pojo.dto.TemplateDetectConfig;
 import com.hawkeye.task.common.pojo.entity.Task;
 import com.hawkeye.task.common.pojo.entity.TaskItem;
-import com.hawkeye.detection.common.pojo.dto.TaskItemMessage;
-import com.common.utils.constant.HeaderConstants;
-import com.common.utils.context.RequestContext;
-import com.common.utils.response.ApiException;
-import com.common.utils.response.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,7 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 任务拆分服务（独立类，解决 @Async 自调用问题）。
@@ -33,7 +38,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TaskSplitService {
+public class TaskSplitService extends ServiceImpl<TaskMapper, Task> {
 
     private static final int BATCH_INSERT_SIZE = 1000;
 
@@ -50,10 +55,13 @@ public class TaskSplitService {
     @Async("taskSplitExecutor")
     public void splitAndDispatch(Task task, List<Long> assetIds, List<Long> templateIds) {
         try {
+            // TODO 事务失效
             doSplitAndDispatch(task, assetIds, templateIds);
         } catch (Exception e) {
+            // TODO 有自定义的错误类，
             log.error("任务拆分失败 taskId={}", task.getTaskId(), e);
             markTaskError(task, e.getMessage());
+            // TODO 没有重新抛出
         }
     }
 
@@ -63,9 +71,10 @@ public class TaskSplitService {
     @Transactional
     protected void doSplitAndDispatch(Task task, List<Long> assetIds, List<Long> templateIds) {
         // 更新状态为执行中
-        task.setStatus(TaskStatusEnum.RUNNING);
-        task.setStartTime(LocalDateTime.now());
-        taskMapper.updateById(task);
+        new LambdaUpdateWrapper<Task>()
+                .eq(Task::getTaskId, task.getTaskId())
+                .set(Task::getStatus, TaskStatusEnum.RUNNING)
+                .set(Task::getStartTime, LocalDateTime.now());
 
         // 批量获取模板配置（带缓存）
         Map<Long, TemplateDetectConfig> templates = templateCache.batchGet(templateIds);

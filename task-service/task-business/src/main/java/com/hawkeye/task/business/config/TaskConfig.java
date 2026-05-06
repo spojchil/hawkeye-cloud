@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "task")
 public class TaskConfig {
 
+    // TODO 轮询发现多余，之后删除
     /** 进度轮询间隔（毫秒），默认 2000ms */
     private long progressPollIntervalMs = 2000;
 
