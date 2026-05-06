@@ -30,26 +30,16 @@ spring:
 
 logging:
   level:
-    com.hawkeye.vul.business.mapper: debug
-    com.hawkeye.vul.business.service: info
-    com.hawkeye.vul.api.controller: debug
+    com.hawkeye.vul.business.mapper: warn
+    com.hawkeye.vul.business.service: warn
+    com.hawkeye.vul.api.controller: warn
 
-# ★ MyBatis-Plus 配置要点：
-#   - 枚举处理器 MybatisEnumTypeHandler 自动处理 IEnum 实现类
-#   - 逻辑删除由 @TableLogic 注解 + 全局配置共同控制
-#   - 分页由 PaginationInnerInterceptor + Page<T> 对象实现
-#   - 多租户由 TenantLineInnerInterceptor + TenantLineHandler 自动注入
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.hawkeye.vul.common.pojo.entity
-  global-config:
-    db-config:
-      logic-delete-field: deleted
-      logic-delete-value: 1
-      logic-not-delete-value: 0
 
 server:
   port: ${SERVER_PORT:8004}

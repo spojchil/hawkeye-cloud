@@ -3,44 +3,59 @@ package com.hawkeye.vul.common.pojo.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/**
- * HTTP 请求步骤。
- * 每个模板可有 1~N 步，step_order 从 1 开始。
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("vul_http_step")
-public class VulHttpStep extends BaseEntity {
+public class VulHttpStep extends BaseVulEntity {
 
     @TableId(type = IdType.AUTO)
-    private Long id;
+    private Long httpId;
 
     private Long templateId;
 
     private Integer stepOrder;
 
+    private String httpName;
+
     private String method;
 
-    /** JSON 数组，如 ["{{BaseURL}}/admin"] */
+    /** JSON array, e.g. ["{{BaseURL}}/admin"] */
     private String path;
 
-    /** JSON 键值对 */
+    /** JSON key-value pairs */
     private String headers;
 
-    private String body;
+    /** Reference to vul_text_content.text_id */
+    private Long bodyTextId;
 
-    /** 原始 HTTP 文本（raw 模式） */
-    private String raw;
+    /** Reference to vul_text_content.text_id (raw HTTP with request line + headers + body) */
+    private Long rawTextId;
 
-    /** 爆破模式：batteringram / pitchfork / clusterbomb */
-    private String attack;
-
-    /** 本步骤内 matcher 间关系：and / or */
+    /** and / or */
     private String matchersCondition;
 
+    /** batteringram / pitchfork / clusterbomb */
+    private String attack;
+
+    /** JSON: payload definitions */
+    private String payloads;
+
     private Boolean stopAtFirstMatch;
+
+    private Boolean selfContained;
+
+    private Boolean redirects;
+
+    private Integer maxRedirects;
+
+    private Boolean hostRedirects;
+
+    private Boolean unsafe;
+
+    private Boolean cookieReuse;
+
+    private Boolean reqCondition;
 }

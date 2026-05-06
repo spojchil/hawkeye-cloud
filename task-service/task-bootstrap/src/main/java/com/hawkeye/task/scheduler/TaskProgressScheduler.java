@@ -1,6 +1,5 @@
 package com.hawkeye.task.scheduler;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hawkeye.task.business.mapper.TaskMapper;
 import com.hawkeye.task.business.service.TaskService;
 import com.hawkeye.task.common.enums.TaskStatusEnum;
@@ -21,6 +20,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 每 2s 轮询 Redis 中 detection-service 写入的完成计数，更新 task 表进度。
  * completed >= totalItems 时标记任务为 DONE。
  * <p>
+ * Redis 键格式：
+ * - task:{taskId}:matched
+ * - task:{taskId}:not_matched
+ * - task:{taskId}:error
+ * <p>
  * ★ 内存缓存上次的 completed 值，只在有变化时才写 DB，减少无谓 UPDATE。
  */
 @Slf4j
@@ -32,8 +36,9 @@ public class TaskProgressScheduler {
     private final TaskMapper taskMapper;
     private final RedisTemplate<String, String> redisTemplate;
 
-    private static final String COMPLETED_KEY_PREFIX = "task:";
-    private static final String COMPLETED_KEY_SUFFIX = ":completed";
+    private static final String KEY_PREFIX = "task:";
+    /** 检测完成的状态列表 */
+    private static final List<String> STATUS_KEYS = List.of("matched", "not_matched", "error");
 
     private final ConcurrentHashMap<Long, Integer> lastCompletedMap = new ConcurrentHashMap<>();
 
@@ -47,12 +52,8 @@ public class TaskProgressScheduler {
 
         for (Long taskId : runningIds) {
             try {
-                String key = COMPLETED_KEY_PREFIX + taskId + COMPLETED_KEY_SUFFIX;
-                String value = redisTemplate.opsForValue().get(key);
-                if (value == null) {
-                    continue;
-                }
-                int completed = Integer.parseInt(value);
+                // 查询所有完成状态的计数并汇总
+                int completed = getCompletedCount(taskId);
 
                 Integer last = lastCompletedMap.put(taskId, completed);
                 if (last != null && last == completed) {
@@ -80,5 +81,24 @@ public class TaskProgressScheduler {
                 log.error("轮询任务进度异常: taskId={}", taskId, e);
             }
         }
+    }
+
+    /**
+     * 获取任务的完成计数（汇总所有状态）。
+     */
+    private int getCompletedCount(Long taskId) {
+        int total = 0;
+        for (String status : STATUS_KEYS) {
+            String key = KEY_PREFIX + taskId + ":" + status;
+            try {
+                String value = redisTemplate.opsForValue().get(key);
+                if (value != null) {
+                    total += Integer.parseInt(value);
+                }
+            } catch (Exception e) {
+                log.warn("读取 Redis 计数失败: key={}", key, e);
+            }
+        }
+        return total;
     }
 }

@@ -38,5 +38,19 @@ public class TaskVO {
         private LocalDateTime startTime;
         private LocalDateTime endTime;
         private String resultSummary;
+        /** 检测项列表（仅详情接口返回） */
+        private List<TaskItemDetail> items;
+
+        @Data
+        public static class TaskItemDetail {
+            private Long itemId;
+            private Long assetId;
+            private Long vulId;
+            private String status;
+            private Integer responseStatusCode;
+            private Integer durationMs;
+            private String matchedMatcher;
+            private String errorMessage;
+        }
     }
 }

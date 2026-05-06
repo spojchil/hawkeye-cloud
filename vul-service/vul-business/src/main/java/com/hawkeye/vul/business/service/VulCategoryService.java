@@ -3,19 +3,18 @@ package com.hawkeye.vul.business.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.hawkeye.vul.common.pojo.entity.VulCategory;
 import com.hawkeye.vul.common.pojo.vo.category.VulCategoryVO;
-import com.hawkeye.vul.common.pojo.vo.category.VulCategoryRequestVO;
 
 import java.util.List;
 
 public interface VulCategoryService extends IService<VulCategory> {
 
-    List<VulCategoryVO> tree(Long parentId);
+    List<VulCategoryVO.Response> tree(Long parentId);
 
-    Long create(VulCategoryRequestVO request);
+    VulCategoryVO.Response create(VulCategoryVO.Request request);
 
-    void update(Long id, VulCategoryRequestVO request);
+    VulCategoryVO.Response update(Long categoryId, VulCategoryVO.Request request);
 
-    void delete(Long id);
+    void delete(Long categoryId);
 
     int addTemplates(Long categoryId, List<Long> templateIds);
 

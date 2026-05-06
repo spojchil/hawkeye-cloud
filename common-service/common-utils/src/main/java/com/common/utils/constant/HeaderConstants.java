@@ -21,6 +21,11 @@ public class HeaderConstants {
     public static final String HEADER_TENANT_NAME = "X-TENANT-NAME";
 
     /**
+     * 用户名请求头（网关注入）
+     */
+    public static final String HEADER_USERNAME = "X-USERNAME";
+
+    /**
      * Token请求头
      */
     public static final String HEADER_TOKEN = "Authorization";

@@ -40,22 +40,11 @@ logging:
     com.hawkeye.asset.business.service: info
     com.hawkeye.asset.api.controller: debug
 
-# ★ MyBatis → MyBatis-Plus 迁移要点：
-#   - 二级配置名从 mybatis: 变为 mybatis-plus:
-#   - 枚举处理器从自定义 CodeEnumTypeHandler 改为 MybatisEnumTypeHandler（自动处理 IEnum）
-#   - 逻辑删除由 @TableLogic 注解 + 全局配置共同控制，二者等效
-#   - PageHelper 已移除，分页由 PaginationInnerInterceptor + Page<T> 对象实现
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
-  mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.hawkeye.asset.common.pojo.entity
-  global-config:
-    db-config:
-      logic-delete-field: deleted
-      logic-delete-value: 1
-      logic-not-delete-value: 0
 
 server:
   port: ${SERVER_PORT:8003}

@@ -3,37 +3,32 @@ package com.hawkeye.vul.common.pojo.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/**
- * 提取器。
- * step_order = NULL 表示全局 extractor。
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("vul_extractor")
-public class VulExtractor extends BaseEntity {
+public class VulExtractor extends BaseVulEntity {
 
     @TableId(type = IdType.AUTO)
-    private Long id;
+    private Long extractorId;
 
     private Long templateId;
 
-    /** NULL=全局；非NULL=步骤专属 */
+    /** NULL=global; non-NULL=step-specific */
     private Integer stepOrder;
 
-    /** regex / json / kval / dsl */
+    /** regex / json / kval / dsl / xpath */
     private String type;
 
     /** body / header */
     private String part;
 
-    /** 提取变量名 */
-    private String name;
+    /** Variable name written to VariableContext */
+    private String extractorName;
 
-    /** JSON：类型特定配置 */
+    /** JSON: type-specific config (regex[] / json[] / kval[] / dsl[] etc.) */
     private String config;
 
     private Boolean internal;

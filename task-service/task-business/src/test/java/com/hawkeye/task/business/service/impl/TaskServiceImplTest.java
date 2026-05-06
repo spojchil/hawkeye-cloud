@@ -8,7 +8,6 @@ import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
 import com.hawkeye.task.business.mapstruct.TaskMapstruct;
 import com.hawkeye.task.business.mapper.TaskMapper;
-import com.hawkeye.task.business.service.TaskItemService;
 import com.hawkeye.task.common.enums.TaskStatusEnum;
 import com.hawkeye.task.common.pojo.entity.Task;
 import com.hawkeye.task.common.pojo.vo.task.PageTaskVO;
@@ -43,15 +42,9 @@ class TaskServiceImplTest {
     @Mock
     private TaskMapstruct taskMapstruct;
     @Mock
-    private TaskItemService taskItemService;
-    @Mock
     private com.hawkeye.task.business.mapper.TaskItemMapper taskItemMapper;
     @Mock
-    private com.hawkeye.task.business.cache.TemplateCache templateCache;
-    @Mock
-    private com.hawkeye.task.business.feign.AssetServiceFeign assetServiceFeign;
-    @Mock
-    private com.hawkeye.task.business.mq.TaskProducerService taskProducerService;
+    private com.hawkeye.task.business.service.impl.TaskSplitService taskSplitService;
     @Mock
     private LambdaQueryChainWrapper<Task> lambdaChain;
     @Mock
@@ -68,14 +61,11 @@ class TaskServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemService, taskItemMapper,
-                templateCache, assetServiceFeign, taskProducerService));
+        taskService = spy(new TaskServiceImpl(taskMapstruct, taskItemMapper, taskSplitService));
         ReflectionTestUtils.setField(taskService, "baseMapper", taskMapper);
 
         // stub 异步拆分，单元测试聚焦 create/getById/pageQuery/cancel 逻辑
-        try {
-            doNothing().when(taskService).splitAndDispatch(any(Task.class), anyList(), anyList());
-        } catch (Exception ignored) { }
+        doNothing().when(taskSplitService).splitAndDispatch(any(Task.class), anyList(), anyList());
 
         doReturn(lambdaChain).when(taskService).lambdaQuery();
         when(lambdaChain.eq(any(), any())).thenReturn(lambdaChain);
@@ -180,7 +170,7 @@ class TaskServiceImplTest {
     @DisplayName("查询任务详情 — 任务存在，返回完整信息")
     void getByIdFound() {
         Task task = buildTask(5001L, "扫描任务", TaskStatusEnum.RUNNING, 100, 42, 3);
-        when(taskMapper.selectById(5001L)).thenReturn(task);
+        when(taskMapper.selectOne(any())).thenReturn(task);
 
         TaskVO.Response response = taskService.getById(5001L);
 
@@ -197,7 +187,7 @@ class TaskServiceImplTest {
     @Test
     @DisplayName("查询任务详情 — 任务不存在，抛 ApiException（404）")
     void getByIdNotFound() {
-        when(taskMapper.selectById(anyLong())).thenReturn(null);
+        when(taskMapper.selectOne(any())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskService.getById(999L));
@@ -330,7 +320,7 @@ class TaskServiceImplTest {
     void cancelNotPending() {
         when(lambdaUpdateChain.update()).thenReturn(false);
         Task task = buildTask(1L, "运行中", TaskStatusEnum.RUNNING, 100, 42, 3);
-        when(taskMapper.selectById(1L)).thenReturn(task);
+        when(taskMapper.selectOne(any())).thenReturn(task);
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> taskService.cancel(1L));

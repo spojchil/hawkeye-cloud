@@ -1,82 +1,99 @@
-use hawkeye;
+-- ============================================================
+-- Hawkeye Cloud — 资产管理服务 建表 DDL
+-- 版本：v3.0（与 vul-service DDL 规范统一）
+-- ============================================================
+-- 约定：
+--   主键          table_id 格式（如 asset_id, category_id）
+--   租户          0 = 平台通用, >0 = 租户私有
+--   逻辑删除       deleted_at BIGINT UNSIGNED, 0=未删除
+--   布尔/枚举      TINYINT UNSIGNED, 0/1
+--   BIGINT       全部 UNSIGNED
+--   时间          DATETIME, NOT NULL, 有默认值
+--   人            BIGINT UNSIGNED NOT NULL DEFAULT 0
+-- ============================================================
 
-drop table if exists asset;
-create table if not exists asset
+USE hawkeye;
+
+
+-- ============================================================
+-- 1. 资产表
+--    资产是检测的目标对象
+--    ★ 分布式不建议使用自增主键, 后续可以考虑改为雪花ID
+-- ============================================================
+DROP TABLE IF EXISTS `asset`;
+CREATE TABLE IF NOT EXISTS `asset`
 (
-#     分布式不建议使用自增的主键id,之后改吧
-    asset_id         bigint primary key auto_increment comment '主键ID',
-    name             varchar(128)  not null comment '资产名称',
-    request_method   tinyint       not null comment '请求方法: 0-GET,1-HEAD,2-POST,3-PUT,4-PATCH,5-DELETE,6-OPTIONS,7-TRACE',
-    request_protocol varchar(10)   not null default 'https' comment '协议: http/https',
-    request_host     varchar(255)  not null comment '请求主机(域名或IP)',
-    request_port     smallint      not null comment '端口号, -1表示使用协议默认端口（应用层处理）',
-    request_path     varchar(1024) not null default '/' comment '请求路径',
-    request_header   json comment '请求头(JSON格式)',
-    description      varchar(500) comment '资产描述',
-
-    status           tinyint       not null default 1 comment '状态: 0-禁用, 1-启用, 2-弃用',
-    risk_level       tinyint                default 0 comment '风险等级: 0-未知, 1-低, 2-中, 3-高',
-    last_scan_time   datetime comment '最近扫描时间',
-
-    tenant_id        bigint        not null default 1 comment '租户ID',
-    deleted          tinyint       not null default 0 comment '逻辑删除: 0-未删除, 1-已删除',
-    create_time      datetime      not null default CURRENT_TIMESTAMP comment '创建时间',
-    update_time      datetime      not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP comment '更新时间',
-    create_by        bigint comment '创建人ID',
-    update_by        bigint comment '更新人ID',
-
-#     unique index uk_tenant_asset (tenant_id, request_protocol, request_host, request_port, request_path(200)), 开销大而且无必要
-    index idx_tenant_host (tenant_id, request_host(100)),
-    index idx_tenant_del_status (tenant_id, deleted, status),
-    index idx_tenant_scan_time (tenant_id, last_scan_time),
-    index idx_tenant_name (tenant_id, name)
-) default charset = utf8mb4
-  collate = utf8mb4_unicode_ci
-    comment ='资产表';
+    `asset_id`         BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
+    `name`             VARCHAR(128)      NOT NULL COMMENT '资产名称',
+    `request_protocol` VARCHAR(10)       NOT NULL DEFAULT 'https' COMMENT '协议: http / https',
+    `request_host`     VARCHAR(255)      NOT NULL COMMENT '请求主机(域名或IP)',
+    `request_port`     SMALLINT UNSIGNED NOT NULL COMMENT '端口号, -1表示使用协议默认端口（应用层处理）',
+    `request_path`     VARCHAR(1024)     NOT NULL DEFAULT '/' COMMENT '请求路径',
+    `description`      VARCHAR(500) COMMENT '资产描述',
+    `status`           TINYINT UNSIGNED  NOT NULL DEFAULT 1 COMMENT '状态: 0=禁用, 1=启用, 2=弃用',
+    `risk_level`       TINYINT UNSIGNED           DEFAULT 0 COMMENT '风险等级: 0=未知, 1=低, 2=中, 3=高',
+    `last_scan_time`   DATETIME COMMENT '最近扫描时间',
+    `tenant_id`        BIGINT UNSIGNED   NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
+    `create_time`      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `create_by`        VARCHAR(64)       NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    `update_by`        VARCHAR(64)       NOT NULL DEFAULT '' COMMENT '更新人用户名',
+    `deleted_at`       BIGINT UNSIGNED   NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
+    PRIMARY KEY (`asset_id`),
+    KEY `idx_tenant_host` (`tenant_id`, `request_host`(100)),
+    KEY `idx_tenant_status` (`tenant_id`, `deleted_at`, `status`),
+    KEY `idx_tenant_scan_time` (`tenant_id`, `last_scan_time`),
+    KEY `idx_tenant_name` (`tenant_id`, `name`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci COMMENT ='资产表';
 
 
-drop table if exists asset_category;
-create table if not exists asset_category
+-- ============================================================
+-- 2. 资产分类表（支持树形）
+--    通过 parent_id 自引用实现层级
+-- ============================================================
+DROP TABLE IF EXISTS `asset_category`;
+CREATE TABLE IF NOT EXISTS `asset_category`
 (
-    category_id bigint primary key auto_increment comment '主键ID',
-    name        varchar(128) not null comment '分类名称',
-    parent_id   bigint comment '父分类id,null表示顶级分类',
-    description varchar(500) comment '分类描述',
+    `category_id` BIGINT UNSIGNED AUTO_INCREMENT COMMENT '主键',
+    `name`        VARCHAR(128)    NOT NULL COMMENT '分类名称',
+    `parent_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '父分类ID, 0=顶级分类',
+    `sort_order`  INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '同级排序',
+    `description` VARCHAR(500) COMMENT '分类描述',
+    `tenant_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
+    `create_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `create_by`   VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    `update_by`   VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '更新人用户名',
+    `deleted_at`  BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
+    PRIMARY KEY (`category_id`),
+    UNIQUE KEY `uk_tenant_name_parent_deleted` (`tenant_id`, `name`, `parent_id`, `deleted_at`),
+    KEY `idx_parent_deleted` (`parent_id`, `deleted_at`),
+    KEY `idx_tenant_deleted` (`tenant_id`, `deleted_at`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci COMMENT ='资产分类表';
 
-    tenant_id   bigint       not null default 1 comment '租户ID',
-    deleted     tinyint      not null default 0 comment '逻辑删除: 0-未删除, 1-已删除',
-    create_time datetime     not null default CURRENT_TIMESTAMP comment '创建时间',
-    update_time datetime     not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP comment '更新时间',
-    create_by   bigint comment '创建人ID',
-    update_by   bigint comment '更新人ID',
 
-    index idx_parent_deleted (parent_id, deleted),
-    index idx_tenant_deleted (tenant_id, deleted),
-    index idx_tenant_parent_deleted (tenant_id, parent_id, deleted),
-    index idx_name (name)
-) default charset = utf8mb4
-  collate = utf8mb4_unicode_ci
-    comment ='资产分类表';
-
-
-drop table if exists asset_category_mapping;
-create table if not exists asset_category_mapping
+-- ============================================================
+-- 3. 资产-分类关联表（M2M）
+--    删除时 UPDATE deleted_at, 同理重新关联时 UPDATE 回 0
+-- ============================================================
+DROP TABLE IF EXISTS `asset_category_mapping`;
+CREATE TABLE IF NOT EXISTS `asset_category_mapping`
 (
-    id          bigint primary key auto_increment comment '主键ID',
-    asset_id    bigint   not null comment '资产ID',
-    category_id bigint   not null comment '分类ID',
-
-    tenant_id   bigint   not null default 1 comment '租户ID (冗余，便于查询和隔离)',
-    deleted     tinyint  not null default 0 comment '逻辑删除: 0-未删除, 1-已删除',
-    create_time datetime not null default current_timestamp comment '创建时间',
-    update_time datetime not null default current_timestamp on update current_timestamp comment '更新时间',
-    create_by   bigint   comment '创建人ID',
-    update_by   bigint   comment '更新人ID',
-
-    unique index uk_asset_category (asset_id, category_id),
-    index idx_asset (asset_id),
-    index idx_category (category_id),
-    index idx_tenant_deleted (tenant_id, deleted)
-) default charset = utf8mb4
-  collate = utf8mb4_unicode_ci
-    comment ='资产-分类关联表';
+    `asset_id`    BIGINT UNSIGNED NOT NULL COMMENT '资产ID',
+    `category_id` BIGINT UNSIGNED NOT NULL COMMENT '分类ID',
+    `tenant_id`   BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
+    `create_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `create_by`   VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '创建人用户名',
+    `update_by`   VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '更新人用户名',
+    `deleted_at`  BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '删除时间戳(毫秒), 0=未删除',
+    PRIMARY KEY (`asset_id`, `category_id`,`deleted_at`),
+    KEY `idx_category_id` (`category_id`),
+    KEY `idx_tenant_id` (`tenant_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci COMMENT ='资产-分类关联表';

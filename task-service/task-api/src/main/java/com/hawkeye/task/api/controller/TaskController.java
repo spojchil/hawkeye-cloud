@@ -4,6 +4,7 @@ import com.common.utils.response.ApiResponse;
 import com.common.utils.response.ListResult;
 import com.hawkeye.task.business.service.TaskService;
 import com.hawkeye.task.common.pojo.vo.task.PageTaskVO;
+import com.hawkeye.task.common.pojo.vo.task.TaskResultVO;
 import com.hawkeye.task.common.pojo.vo.task.TaskVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,4 +45,16 @@ public class TaskController {
         taskService.cancel(taskId);
         return ApiResponse.success();
     }
+
+    @GetMapping("/{taskId}/results")
+    @Operation(summary = "查询检测结果")
+    public ApiResponse<ListResult<TaskResultVO>> listResults(
+            @PathVariable Long taskId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResponse.success(taskService.listResults(taskId, status, page, size));
+    }
+
+    // 设计不允许修改任务
 }

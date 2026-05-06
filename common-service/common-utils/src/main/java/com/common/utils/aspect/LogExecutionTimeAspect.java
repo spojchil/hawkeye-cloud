@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSON;
 import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.constant.HeaderConstants;
 import com.common.utils.context.RequestContext;
+import com.common.utils.response.ApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -143,17 +144,20 @@ public class LogExecutionTimeAspect {
             }
 
             // 日志级别决策：
-            // - 成功 + 慢请求 → WARN，便于日志平台告警
-            // - 成功 + 正常 → INFO，常规监控
-            // - 失败         → ERROR，必须关注
+            // - 成功 + 慢请求 → WARN
+            // - 成功 + 正常 → INFO
+            // - 失败 + ApiException → WARN（业务异常，由 GlobalExceptionHandler 再打一次即可）
+            // - 失败 + 其他     → ERROR（系统异常，需关注）
             if (success) {
                 if (costTime >= logExecutionTime.slowThresholdMs()) {
                     log.warn(logMsg.toString());
                 } else {
                     log.info(logMsg.toString());
                 }
+            } else if (throwable instanceof ApiException) {
+                log.warn(logMsg.toString());
             } else {
-                log.error(logMsg.toString());
+                log.error(logMsg.toString(), throwable);
             }
         }
     }
