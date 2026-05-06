@@ -1,6 +1,12 @@
 # Hawkeye Cloud
 
-分布式漏洞检测平台 —— 基于 Java 21 + Spring Cloud 微服务架构，支持 SaaS 多租户与私有化部署。
+分布式漏洞检测平台 —— 基于 Java 21 + Spring Cloud 微服务 + RocketMQ 异步调度，支持 SaaS 多租户。
+
+[![Java 21](https://img.shields.io/badge/Java-21-orange)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0.5-brightgreen)](https://spring.io/projects/spring-boot)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
+---
 
 ## 快速开始
 
@@ -8,97 +14,90 @@
 # 打包
 mvn clean package -DskipTests
 
-# Docker Compose 一键启动（MySQL + Redis + Nacos + RocketMQ + 所有微服务）
+# 一键启动全部服务（12 个容器）
 docker compose up -d --build
-
-# 网关入口：http://localhost:8001
-# 管理界面：http://localhost:3000
-# Nacos 控制台：http://localhost:8848/nacos
 ```
+
+| 入口 | 地址 |
+|------|------|
+| 管理界面 | http://localhost:3000 |
+| 网关入口 | http://localhost:8001 |
+| Nacos 控制台 | http://localhost:8848/nacos （nacos / nacos） |
 
 前置依赖：JDK 21、Maven 3.9+、Docker。
 
-## 服务列表
+---
 
-| 服务 | 端口 | 状态 | 说明 |
-|------|------|------|------|
-| gateway-service | 8001 | 基础 | API 网关：路由转发 + JWT 鉴权 + CORS |
-| auth-service | 8002 | 基础 | 用户认证：登录 + JWT 签发 |
-| asset-service | 8003 | 完成 | 资产管理：CRUD + 分类树 |
-| vul-service | 8004 | 完成 | 漏洞模板管理：CRUD + YAML 导入 + 分类 + 标签 |
-| task-service | 8005 | 完成 | 任务调度引擎：提交 → 拆分 → RocketMQ 分发 → 轮询进度 |
-| detection-service | 8006+ | 完成 | 检测 Worker：HTTP 探测 + 匹配引擎，可水平扩展 |
-| web-admin | 3000 | 完成 | 前端管理界面（SPA 单页） |
-| tenant-service | — | 规划中 | 多租户管理 |
-| audit-service | — | 规划中 | 日志审计服务 |
+## 架构
+
+```
+  Browser → Gateway (:8001) ──→ Auth (:8002)   登录认证
+            │                   Asset (:8003)  资产管理
+            │                   Vul (:8004)    漏洞模板
+            │                   Task (:8005)   任务调度
+            └─ RocketMQ ────→ Detection (:8006+) Worker 集群
+```
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| gateway | 8001 | API 网关：路由转发 + JWT 鉴权 |
+| auth | 8002 | 认证：登录 + JWT 签发 |
+| asset | 8003 | 资产管理：CRUD + 分类树 |
+| vul | 8004 | 漏洞模板：12 表归一化 + YAML 导入 |
+| task | 8005 | 任务调度：提交 → 拆分 → MQ 分发 → 轮询进度 |
+| detection | 8006+ | 检测 Worker：匹配引擎 + 管线模式，可水平扩展 |
+| web-admin | 3000 | 管理界面（SPA 单页） |
+
+每个微服务内部 `common → business → api → bootstrap` 四层分包，依赖单向。
+
+### 核心检测链路
+
+```
+用户提交任务 → task 拆分(资产×模板) → RocketMQ 投递 → detection 并发探测 → 批量回写
+                                        ↑
+                                   Worker 负载感知投递
+```
+
+---
+
+## 技术栈
+
+Java 21 · Spring Boot 4.0 · Spring Cloud Alibaba · MyBatis-Plus · MySQL · Redis · RocketMQ · Aviator · Caffeine · MapStruct · Docker · GitHub Actions
+
+---
 
 ## 项目结构
 
 ```
 hawkeye-cloud/
-├── common-service/        # 公共基础设施（统一响应、多租户、异常处理）
+├── common-service/        # 公共基础设施
 ├── gateway-service/       # API 网关
 ├── auth-service/          # 认证服务
 ├── asset-service/         # 资产服务
 ├── vul-service/           # 漏洞管理服务
 ├── task-service/          # 任务调度服务
 ├── detection-service/     # 检测执行服务
-├── web-admin/             # 前端管理界面
-├── docs/                  # 项目文档
+├── web-admin/             # 管理界面
+├── docs/                  # 项目文档 & API 文档 & SQL
 └── docker-compose.yml     # 容器编排
 ```
 
-每个微服务内部按 `common → business → api → bootstrap` 四层分包，依赖单向。
+---
 
 ## 文档
 
-### 项目文档
-
 | 文档 | 说明 |
 |------|------|
-| [项目说明](docs/项目说明.md) | 项目定位、技术栈、开发进度 |
-| [架构设计](docs/架构设计.md) | 整体架构、网关、多租户、检测链路 |
-
-
-| [开发规范补充](docs/开发规范补充.md) | 阿里开发规范 + 项目特定约定 |
-
-### 模块文档
-
-| 模块 | 文档 |
-|------|------|
-| 公共服务 | [模块01-公共服务](docs/模块01-公共服务.md) |
-| 网关服务 | [模块02-网关服务](docs/模块02-网关服务.md) |
-| 认证服务 | [模块03-认证服务](docs/模块03-认证服务.md) |
-| 资产服务 | [模块04-资产服务](docs/模块04-资产服务.md) |
-| 漏洞管理服务 | [模块05-漏洞管理服务](docs/模块05-漏洞管理服务.md) |
-| 任务调度服务 | [模块06-任务调度服务](docs/模块06-任务调度服务.md) |
-| 检测执行服务 | [模块07-检测执行服务](docs/模块07-检测执行服务.md) |
-
-### API 文档
-
-| 服务 | 文档 |
-|------|------|
-| 认证服务 | [API](docs/api/认证服务-API.md) |
-| 资产服务 | [API](docs/api/资产服务-API.md) |
-| 漏洞管理服务 | [API](docs/api/漏洞管理服务-API.md) |
-| 任务调度服务 | [API](docs/api/任务调度服务-API.md) |
-| 检测执行服务 | [API](docs/api/检测执行服务-API.md) |
-
-### SQL 脚本
-
-| 服务 | 脚本 |
-|------|------|
-| 认证服务 | [SQL](docs/sql/认证服务.sql) |
-| 资产服务 | [SQL](docs/sql/资产服务.sql) |
-| 漏洞管理服务 | [SQL](docs/sql/漏洞管理服务.sql) |
-| 任务调度服务 | [SQL](docs/sql/任务调度服务.sql) |
+| [项目说明](docs/项目说明.md) | 定位、技术栈、进度 |
+| [架构设计](docs/架构设计.md) | 整体架构、多租户、检测链路 |
+| [API 文档](docs/api/) | 各服务 REST API |
+| [SQL 脚本](docs/sql/) | 各服务 DDL |
+| [开发规范](docs/开发规范补充.md) | 阿里规范 + 项目约定 |
 
 ## 漏洞模板库
 
-使用 [projectdiscovery/nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) 的 HTTP 模板库，平台上线即可获得 **10,000+** 现成检测模板，覆盖 CVE、信息泄露、配置错误、未授权访问等主流漏洞类型。
+兼容 [Nuclei Templates](https://github.com/projectdiscovery/nuclei-templates) 格式，**10,000+** 现成检测模板。
 
 ## 许可证
 
-本项目基于 [MIT License](LICENSE) 开源。
-
-nuclei-templates 模板库基于 [MIT License](https://github.com/projectdiscovery/nuclei-templates/blob/main/LICENSE.md) 授权使用。
+[MIT License](LICENSE) · Nuclei Templates [MIT License](https://github.com/projectdiscovery/nuclei-templates/blob/main/LICENSE.md)
