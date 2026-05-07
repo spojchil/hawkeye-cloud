@@ -53,9 +53,7 @@ docker compose up -d --build
 ### 核心检测链路
 
 ```
-用户提交任务 → task 拆分(资产×模板) → RocketMQ 投递 → detection 并发探测 → 批量回写
-                                        ↑
-                                   Worker 负载感知投递
+用户提交任务 → task 拆分(资产×模板) → RocketMQ 异步投递 → detection 并发探测 → 批量回写
 ```
 
 ---
@@ -90,6 +88,7 @@ hawkeye-cloud/
 |------|------|
 | [项目说明](docs/项目说明.md) | 定位、技术栈、进度 |
 | [架构设计](docs/架构设计.md) | 整体架构、多租户、检测链路 |
+| [架构演化](docs/架构演化.md) | v1→v3 设计决策与迭代历史 |
 | [API 文档](docs/api/) | 各服务 REST API |
 | [SQL 脚本](docs/sql/) | 各服务 DDL |
 | [开发规范](docs/开发规范补充.md) | 阿里规范 + 项目约定 |
