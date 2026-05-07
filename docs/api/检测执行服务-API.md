@@ -66,10 +66,10 @@ task-service 投递时携带完整执行数据，detection 零外部依赖。
 |------|------|
 | `TaskItemConsumer` | RocketMQ 监听器，收到消息 → DetectionEngine |
 | `DetectionEngine` | 编排：变量解析 → HTTP 探测 → 匹配 → 结果写入 |
-| `VariableResolver` | `{{BaseURL}}`/`{{Hostname}}`/`{{rand_int}}` 等占位符递归替换 |
-| `HttpExecutor` | Java HttpClient，支持 Simple(path+method) 和 Raw(原始HTTP文本) 两种模式 |
-| `MatcherChain` | Word/Status/Dsl 三种匹配器责任链，支持 and/or/negative |
-| `ExtractorChain` | Regex/Kval 提取器，多步骤间变量传递 |
+| `VariableContext` | 变量上下文：`{{BaseURL}}`/`{{Hostname}}`/`{{rand_int}}` 等占位符替换，支持嵌套解析（5层上限）+ 跨步骤回写 |
+| `HttpExecutor` | Java HttpClient，支持 Simple(path+method) 和 Raw(原始HTTP文本) 两种模式，HTTPS 失败自动降级 HTTP |
+| `MatcherPipeline` | Word/Status/Dsl/Regex 四种匹配器管线，通过 MatcherRegistry 注册，支持 and/or/negative |
+| `ExtractorPipeline` | Regex/Kval 提取器管线，通过 ExtractorRegistry 注册，结果回写 VariableContext |
 | `ResultWriter` | 缓冲 500 条/5s 定时 → 批量 INSERT detection_result + Redis INCR |
 
 ---
@@ -80,12 +80,12 @@ task-service 投递时携带完整执行数据，detection 零外部依赖。
 TaskItemConsumer.onMessage(msg)
   │
   ├─ DetectionEngine.execute(msg)
-  │     ├─ VariableResolver(protocol, host, port, path, variables)
+  │     ├─ VariableContext(protocol, host, port, path, variables)
   │     ├─ flow==null → 单步 / "http(1)&&http(2)" → 串行多步
   │     │     ├─ resolve() 递归替换占位符
   │     │     ├─ raw≠null → executeRaw() / else → execute()
-  │     │     ├─ ExtractorChain.extract() → 变量写回 resolver
-  │     │     └─ MatcherChain.match() → matched/not_matched
+  │     │     ├─ ExtractorPipeline.extract() → 变量写回 VariableContext
+  │     │     └─ MatcherPipeline.evaluate() → matched/not_matched
   │     └─ → DetectionResult {matched/not_matched/error}
   │
   ├─ ResultWriter.write(result)
