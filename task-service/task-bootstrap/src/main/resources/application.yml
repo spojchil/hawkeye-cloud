@@ -69,5 +69,8 @@ task:
   progress:
     poll-interval-ms: 2000
 
+knife4j:
+  enable: true
+
 server:
   port: ${SERVER_PORT:8005}

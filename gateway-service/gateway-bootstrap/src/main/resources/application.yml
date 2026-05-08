@@ -97,3 +97,6 @@ logging:
     reactor.netty: ${custom.log-level}
     com.alibaba.nacos: ${custom.log-level}
     org.springframework.cloud.loadbalancer: ${custom.log-level}
+
+knife4j:
+  enable: false
