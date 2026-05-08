@@ -11,11 +11,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 默认检测项预检器实现。
- * <p>
- * 过滤规则：
- * 1. 过滤掉使用 OAST 机制的模板（包含 interactsh-url）
- * 2. 其他预检逻辑待扩展
+ * 默认预检器——过滤 OAST 机制模板（含 interactsh-url），后续可扩展
  */
 @Slf4j
 @Component
@@ -31,7 +27,7 @@ public class DefaultTaskItemPreChecker implements TaskItemPreChecker {
 
     @Override
     public boolean preCheck(AssetBrief asset, TemplateDetectConfig template) {
-        // 检查模板是否使用了 OAST 机制（interactsh-url）
+        /* 检查模板是否使用了 OAST 机制（interactsh-url） */
         if (usesOast(template)) {
             log.debug("跳过使用OAST机制的模板: {}", template.getYamlId());
             return false;
@@ -42,7 +38,7 @@ public class DefaultTaskItemPreChecker implements TaskItemPreChecker {
 
     @Override
     public List<TaskItem> filterValidItems(List<TaskItem> items) {
-        // 当前实现：保留所有 items，在 preCheck 时逐个检查
+        /* 当前实现：保留所有 items，在 preCheck 时逐个检查 */
         return items;
     }
 
@@ -66,12 +62,12 @@ public class DefaultTaskItemPreChecker implements TaskItemPreChecker {
     }
 
     private boolean stepUsesOast(TemplateDetectConfig.HttpStepConfig step) {
-        // 检查 raw 请求中是否包含 interactsh-url
+        /* 检查 raw 请求中是否包含 interactsh-url */
         if (step.getRaw() != null && INTERACTSH_PATTERN.matcher(step.getRaw()).find()) {
             return true;
         }
 
-        // 检查 path 中是否包含 interactsh-url
+        /* 检查 path 中是否包含 interactsh-url */
         if (step.getPath() != null) {
             for (String p : step.getPath()) {
                 if (p != null && INTERACTSH_PATTERN.matcher(p).find()) {
@@ -80,7 +76,7 @@ public class DefaultTaskItemPreChecker implements TaskItemPreChecker {
             }
         }
 
-        // 检查 matchers 的 config 中是否包含 interactsh
+        /* 检查 matchers 的 config 中是否包含 interactsh */
         if (step.getMatchers() != null) {
             for (var matcher : step.getMatchers()) {
                 if (matcher.getConfig() != null) {

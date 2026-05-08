@@ -15,17 +15,9 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 任务进度轮询调度器。
- * <p>
- * 每 2s 轮询 Redis 中 detection-service 写入的完成计数，更新 task 表进度。
- * completed >= totalItems 时标记任务为 DONE。
- * <p>
- * Redis 键格式：
- * - task:{taskId}:matched
- * - task:{taskId}:not_matched
- * - task:{taskId}:error
- * <p>
- * ★ 内存缓存上次的 completed 值，只在有变化时才写 DB，减少无谓 UPDATE。
+ * 任务进度轮询——每 2s 轮询 Redis 计数器，completed>=total 时标记 DONE
+ *
+ * <p>内存缓存上次 completed 值，只在变化时写 DB。</p>
  */
 @Slf4j
 @Component
@@ -52,7 +44,7 @@ public class TaskProgressScheduler {
 
         for (Long taskId : runningIds) {
             try {
-                // 查询所有完成状态的计数并汇总
+                /* 查询所有完成状态的计数并汇总 */
                 int completed = getCompletedCount(taskId);
 
                 Integer last = lastCompletedMap.put(taskId, completed);

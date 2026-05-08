@@ -6,9 +6,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 /**
- * 检测项状态枚举。
- * <p>
- * 值必须与 DDL 注释一致：0=待执行, 1=匹配, 2=未匹配, 3=失败, 4=跳过
+ * 检测项状态——PENDING→MATCHED/NOT_MATCHED/FAILED，预检过滤→SKIPPED，值须与 DDL 一致 (0-4)
  */
 @Getter
 public enum TaskItemStatusEnum implements IEnum<Integer> {

@@ -215,8 +215,8 @@ class TaskServiceImplTest {
         assertAll("默认分页",
                 () -> assertEquals(2, result.getTotal()),
                 () -> assertEquals(2, result.getData().size()),
-                () -> assertEquals("任务A", result.getData().get(0).getTaskName()),
-                () -> assertEquals(TaskStatusEnum.DONE, result.getData().get(0).getStatus()),
+                () -> assertEquals("任务A", result.getData().getFirst().getTaskName()),
+                () -> assertEquals(TaskStatusEnum.DONE, result.getData().getFirst().getStatus()),
                 () -> assertEquals("任务B", result.getData().get(1).getTaskName())
         );
     }
@@ -233,7 +233,7 @@ class TaskServiceImplTest {
 
         assertAll("按名称筛选",
                 () -> assertEquals(1, result.getTotal()),
-                () -> assertEquals("11月扫描", result.getData().get(0).getTaskName())
+                () -> assertEquals("11月扫描", result.getData().getFirst().getTaskName())
         );
     }
 
@@ -249,7 +249,7 @@ class TaskServiceImplTest {
 
         assertAll("按状态筛选",
                 () -> assertEquals(1, result.getTotal()),
-                () -> assertEquals(TaskStatusEnum.RUNNING, result.getData().get(0).getStatus())
+                () -> assertEquals(TaskStatusEnum.RUNNING, result.getData().getFirst().getStatus())
         );
     }
 
@@ -344,7 +344,7 @@ class TaskServiceImplTest {
 
         assertAll("运行中任务ID",
                 () -> assertEquals(2, ids.size()),
-                () -> assertEquals(1L, ids.get(0)),
+                () -> assertEquals(1L, ids.getFirst()),
                 () -> assertEquals(2L, ids.get(1))
         );
     }
@@ -376,7 +376,6 @@ class TaskServiceImplTest {
         return task;
     }
 
-    @SuppressWarnings("unchecked")
     private void stubSelectPage(List<Task> tasks) {
         when(taskMapper.selectPage(any(), any())).thenAnswer(inv -> {
             com.baomidou.mybatisplus.extension.plugins.pagination.Page<Task> page = inv.getArgument(0);

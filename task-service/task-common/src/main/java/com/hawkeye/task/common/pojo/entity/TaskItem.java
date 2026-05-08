@@ -11,13 +11,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 检测项——一次任务拆分的最小执行单元（一个资产 + 一个模板）。
- * <p>
- * 合并了原 detection_result 表的字段，包含检测执行结果。
- * <p>
- * 状态流转：
- * - PENDING(0) → MATCHED(1) / NOT_MATCHED(2) / FAILED(3)
- * - 预检过滤 → SKIPPED(4)
+ * 检测项——一个资产+一个模板的最小执行单元，合并了原 detection_result 的检测结果字段
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
@@ -39,7 +33,7 @@ public class TaskItem extends BaseEntity {
     /** 状态 */
     private TaskItemStatusEnum status;
 
-    // ── 检测结果字段（原 detection_result 表）─────────────────────────
+    /* 检测结果字段（原 detection_result 表） */
 
     /** HTTP 响应状态码 */
     private Integer responseStatusCode;

@@ -6,11 +6,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 /**
- * 任务状态枚举。
- * <p>
- * 状态流转: PENDING → RUNNING → DONE / ERROR / CANCELLED
- * <p>
- * 值必须与 DDL 注释一致：0=待执行, 1=执行中, 2=已完成, 3=已取消, 4=异常终止
+ * 任务状态——PENDING→RUNNING→DONE/CANCELLED/ERROR，值须与 DDL 一致 (0-4)
  */
 @Getter
 public enum TaskStatusEnum implements IEnum<Integer> {

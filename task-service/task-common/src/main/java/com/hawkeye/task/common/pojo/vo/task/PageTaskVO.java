@@ -7,6 +7,9 @@ import org.hibernate.validator.constraints.Range;
 
 import java.time.LocalDateTime;
 
+/**
+ * 任务分页 VO
+ */
 public class PageTaskVO {
 
     @Data
@@ -23,7 +26,7 @@ public class PageTaskVO {
          */
         private String taskName;
 
-        // TODO 状态为什么是模糊的？
+        /* TODO 状态为什么是模糊的？ */
         /**
          * 模糊查询的状态
          */

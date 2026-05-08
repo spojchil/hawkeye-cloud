@@ -31,9 +31,7 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * 任务服务实现。
- * <p>
- * 核心职责：创建任务 → 委托 TaskSplitService 异步拆分 → 轮询进度
+ * 任务服务实现——创建任务 → 委托 TaskSplitService 异步拆分 → 轮询进度
  */
 @Slf4j
 @Service
@@ -47,13 +45,13 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     private final TaskSplitService taskSplitService;
     private final StringRedisTemplate redisTemplate;
 
-    // ── 创建任务 ──────────────────────────────────────────────────────
+    /* 创建任务 */
 
     @LogExecutionTime("创建任务")
     @Override
     @Transactional
     public TaskVO.Response create(TaskVO.Request request) {
-        // 幂等性检查：同一幂等键返回已有任务
+        /* 幂等性检查：同一幂等键返回已有任务 */
         if (StrUtil.isNotBlank(request.getIdempotencyKey())) {
             String key = "task:idempotent:" + request.getIdempotencyKey();
             String existingTaskId = redisTemplate.opsForValue().get(key);
@@ -63,7 +61,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             }
         }
 
-        // 1. 构建任务实体
+        /* 1. 构建任务实体 */
         Task task = taskMapstruct.toEntity(request);
         task.setStatus(TaskStatusEnum.PENDING);
         task.setTotalItems(0);
@@ -71,22 +69,22 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         task.setFailedItems(0);
         if (task.getPriority() == null) task.setPriority(1);
 
-        // 2. 持久化
+        /* 2. 持久化 */
         save(task);
 
-        // 3. 缓存幂等键 → taskId（1 小时过期）
+        /* 3. 缓存幂等键 → taskId（1 小时过期） */
         if (StrUtil.isNotBlank(request.getIdempotencyKey())) {
             String key = "task:idempotent:" + request.getIdempotencyKey();
             redisTemplate.opsForValue().set(key, String.valueOf(task.getTaskId()), Duration.ofHours(1));
         }
 
-        // 4. 委托异步服务拆分+投递
+        /* 4. 委托异步服务拆分+投递 */
         taskSplitService.splitAndDispatch(task, request.getAssetIds(), request.getTemplateIds());
 
         return taskMapstruct.toResponseVO(task);
     }
 
-    // ── 查询接口 ──────────────────────────────────────────────────────
+    /* 查询接口 */
 
     @LogExecutionTime("查询任务详情")
     @Override
@@ -94,14 +92,14 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         Task task = getTaskOrThrow(taskId);
         TaskVO.Response response = taskMapstruct.toResponseVO(task);
 
-        // 查询检测项列表
+        /* 查询检测项列表 */
         List<TaskItem> items = taskItemMapper.selectList(
                 new LambdaQueryWrapper<TaskItem>()
                         .eq(TaskItem::getTaskId, taskId)
                         .eq(TaskItem::getDeletedAt, 0L)
                         .orderByAsc(TaskItem::getItemId));
 
-        // 转换为 TaskItemDetail
+        /* 转换为 TaskItemDetail */
         List<TaskVO.Response.TaskItemDetail> itemDetails = items.stream()
                 .map(this::toTaskItemDetail)
                 .toList();
@@ -136,7 +134,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     @Transactional
     public void cancel(Long taskId) {
-        // 原子更新：只有 PENDING 状态才能取消
+        /* 原子更新：只有 PENDING 状态才能取消 */
         boolean updated = lambdaUpdate()
                 .eq(Task::getTaskId, taskId)
                 .eq(Task::getDeletedAt, 0L)
@@ -175,7 +173,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     public ListResult<TaskResultVO> listResults(Long taskId, String status, Integer page, Integer size) {
         getTaskOrThrow(taskId);
 
-        // 从 task_item 表查询结果
+        /* 从 task_item 表查询结果 */
         LambdaQueryWrapper<TaskItem> wrapper = new LambdaQueryWrapper<TaskItem>()
                 .eq(TaskItem::getTaskId, taskId)
                 .eq(TaskItem::getDeletedAt, 0L)
@@ -194,7 +192,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         return ListResult.result((int) result.getTotal(), vos);
     }
 
-    // ── 工具方法 ──────────────────────────────────────────────────────
+    /* 工具方法 */
 
     /** 解析状态字符串为枚举 */
     private TaskItemStatusEnum parseStatus(String status) {
