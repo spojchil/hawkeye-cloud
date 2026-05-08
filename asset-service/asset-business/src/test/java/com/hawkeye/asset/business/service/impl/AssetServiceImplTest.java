@@ -2,18 +2,18 @@ package com.hawkeye.asset.business.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.hawkeye.asset.business.mapstruct.AssetMapstruct;
+import com.common.utils.response.ApiException;
+import com.common.utils.response.CommonErrorCode;
+import com.common.utils.response.ListResult;
 import com.hawkeye.asset.business.mapper.AssetCategoryMappingMapper;
 import com.hawkeye.asset.business.mapper.AssetMapper;
+import com.hawkeye.asset.business.mapstruct.AssetMapstruct;
 import com.hawkeye.asset.common.enums.AssetRiskEnum;
 import com.hawkeye.asset.common.enums.AssetStatusEnum;
 import com.hawkeye.asset.common.pojo.entity.Asset;
 import com.hawkeye.asset.common.pojo.entity.AssetCategoryMapping;
 import com.hawkeye.asset.common.pojo.vo.asset.AssetVO;
 import com.hawkeye.asset.common.pojo.vo.asset.PageAssetVO;
-import com.common.utils.response.ApiException;
-import com.common.utils.response.CommonErrorCode;
-import com.common.utils.response.ListResult;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.BeforeAll;
@@ -120,8 +120,8 @@ class AssetServiceImplTest {
         assertAll("默认分页查询",
                 () -> assertEquals(2, result.getTotal()),
                 () -> assertEquals(2, result.getData().size()),
-                () -> assertEquals("api.example.com", result.getData().get(0).getName()),
-                () -> assertEquals(AssetRiskEnum.LOW, result.getData().get(0).getRiskLevel())
+                () -> assertEquals("api.example.com", result.getData().getFirst().getName()),
+                () -> assertEquals(AssetRiskEnum.LOW, result.getData().getFirst().getRiskLevel())
         );
     }
 
@@ -137,7 +137,7 @@ class AssetServiceImplTest {
 
         assertAll("按名称筛选",
                 () -> assertEquals(1, result.getTotal()),
-                () -> assertEquals("api.example.com", result.getData().get(0).getName())
+                () -> assertEquals("api.example.com", result.getData().getFirst().getName())
         );
     }
 
@@ -152,7 +152,7 @@ class AssetServiceImplTest {
         ListResult<PageAssetVO.Response> result = assetService.pageQuery(request);
 
         assertEquals(1, result.getTotal());
-        assertEquals("192.168.1.100", result.getData().get(0).getRequestHost());
+        assertEquals("192.168.1.100", result.getData().getFirst().getRequestHost());
     }
 
     @Test
@@ -166,7 +166,7 @@ class AssetServiceImplTest {
         ListResult<PageAssetVO.Response> result = assetService.pageQuery(request);
 
         assertEquals(1, result.getTotal());
-        assertEquals(AssetRiskEnum.HIGH, result.getData().get(0).getRiskLevel());
+        assertEquals(AssetRiskEnum.HIGH, result.getData().getFirst().getRiskLevel());
     }
 
     @Test
@@ -180,7 +180,7 @@ class AssetServiceImplTest {
         ListResult<PageAssetVO.Response> result = assetService.pageQuery(request);
 
         assertEquals(1, result.getTotal());
-        assertEquals(AssetStatusEnum.DISABLED, result.getData().get(0).getStatus());
+        assertEquals(AssetStatusEnum.DISABLED, result.getData().getFirst().getStatus());
     }
 
     @Test
@@ -518,7 +518,6 @@ class AssetServiceImplTest {
         return asset;
     }
 
-    @SuppressWarnings("unchecked")
     private void stubSelectPage(List<Asset> assets) {
         when(assetMapper.selectPage(any(), any())).thenAnswer(inv -> {
             com.baomidou.mybatisplus.extension.plugins.pagination.Page<Asset> page = inv.getArgument(0);

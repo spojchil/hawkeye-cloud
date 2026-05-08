@@ -8,8 +8,6 @@ import com.hawkeye.asset.common.pojo.vo.asset.PageAssetVO;
 
 /**
  * 资产服务接口
- * <p>
- * 继承 MyBatis-Plus 的 {@link IService}，获得一批内置的 CRUD 方法。
  */
 public interface AssetService extends IService<Asset> {
 

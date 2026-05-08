@@ -10,15 +10,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+/**
+ * 资产管理
+ */
 @RestController
 @RequestMapping("/asset")
 @RequiredArgsConstructor
@@ -47,7 +43,7 @@ public class AssetController {
     @PutMapping("/{assetId}")
     @Operation(summary = "更新资产")
     public ApiResponse<AssetVO.Response> update(@PathVariable Long assetId,
-                                                 @RequestBody AssetVO.Request request) {
+                                                @RequestBody AssetVO.Request request) {
         return ApiResponse.success(assetService.update(assetId, request));
     }
 

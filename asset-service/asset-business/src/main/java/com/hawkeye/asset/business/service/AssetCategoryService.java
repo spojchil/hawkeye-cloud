@@ -8,9 +8,6 @@ import java.util.List;
 
 /**
  * 资产分类服务接口
- * <p>
- * 继承 MyBatis-Plus 的 {@link IService}，获得一批内置的 CRUD 方法。
- * 额外提供了分类与资产关联（多对多）的批量操作方法。
  */
 public interface AssetCategoryService extends IService<AssetCategory> {
 

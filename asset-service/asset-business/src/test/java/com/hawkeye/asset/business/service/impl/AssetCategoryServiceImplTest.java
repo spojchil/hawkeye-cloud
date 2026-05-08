@@ -4,9 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
-import com.hawkeye.asset.business.mapstruct.AssetCategoryMapstruct;
 import com.hawkeye.asset.business.mapper.AssetCategoryMapper;
 import com.hawkeye.asset.business.mapper.AssetCategoryMappingMapper;
+import com.hawkeye.asset.business.mapstruct.AssetCategoryMapstruct;
 import com.hawkeye.asset.common.pojo.entity.AssetCategory;
 import com.hawkeye.asset.common.pojo.entity.AssetCategoryMapping;
 import com.hawkeye.asset.common.pojo.vo.category.CategoryVO;
@@ -90,9 +90,9 @@ class AssetCategoryServiceImplTest {
 
         assertAll("顶级分类列表",
                 () -> assertEquals(2, result.size()),
-                () -> assertEquals("Web 应用", result.get(0).getName()),
+                () -> assertEquals("Web 应用", result.getFirst().getName()),
                 () -> assertEquals("API 服务", result.get(1).getName()),
-                () -> assertEquals(0L, result.get(0).getParentId(), "顶级分类的 parentId 应为 0")
+                () -> assertEquals(0L, result.getFirst().getParentId(), "顶级分类的 parentId 应为 0")
         );
     }
 
@@ -107,7 +107,7 @@ class AssetCategoryServiceImplTest {
 
         assertAll("子分类列表",
                 () -> assertEquals(2, result.size()),
-                () -> assertEquals(1L, result.get(0).getParentId()),
+                () -> assertEquals(1L, result.getFirst().getParentId()),
                 () -> assertEquals(1L, result.get(1).getParentId())
         );
     }
@@ -121,7 +121,7 @@ class AssetCategoryServiceImplTest {
         List<CategoryVO.Response> result = categoryService.listCategories(null, "Web");
 
         assertEquals(1, result.size());
-        assertEquals("Web 安全", result.get(0).getName());
+        assertEquals("Web 安全", result.getFirst().getName());
     }
 
     @Test

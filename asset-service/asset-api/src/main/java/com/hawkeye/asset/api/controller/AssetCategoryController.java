@@ -7,18 +7,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 资产分类管理
+ */
 @RestController
 @RequestMapping("/asset-category")
 @RequiredArgsConstructor
@@ -44,7 +39,7 @@ public class AssetCategoryController {
     @PutMapping("/{categoryId}")
     @Operation(summary = "更新分类")
     public ApiResponse<CategoryVO.Response> update(@PathVariable Long categoryId,
-                                                    @RequestBody CategoryVO.Request request) {
+                                                   @RequestBody CategoryVO.Request request) {
         return ApiResponse.success(assetCategoryService.update(categoryId, request));
     }
 
@@ -58,14 +53,14 @@ public class AssetCategoryController {
     @PostMapping("/{categoryId}/assets")
     @Operation(summary = "给分类添加资产")
     public ApiResponse<Integer> addAssets(@PathVariable Long categoryId,
-                                           @RequestBody List<Long> assetIds) {
+                                          @RequestBody List<Long> assetIds) {
         return ApiResponse.success(assetCategoryService.addAssets(categoryId, assetIds));
     }
 
     @DeleteMapping("/{categoryId}/assets")
     @Operation(summary = "从分类移除资产")
     public ApiResponse<Integer> removeAssets(@PathVariable Long categoryId,
-                                              @RequestBody List<Long> assetIds) {
+                                             @RequestBody List<Long> assetIds) {
         return ApiResponse.success(assetCategoryService.removeAssets(categoryId, assetIds));
     }
 }

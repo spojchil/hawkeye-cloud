@@ -6,17 +6,7 @@ import com.hawkeye.asset.common.pojo.vo.asset.PageAssetVO;
 import org.mapstruct.Mapper;
 
 /**
- * 资产对象映射转换器（MapStruct）
- * <p>
- * 编译期自动生成 {@code AssetMapstructImpl} 实现类，
- * 通过 {@code componentModel = "spring"} 注入 Spring 容器。
- * <p>
- * 命名约定：
- * <ul>
- *   <li>{@code toEntity()} —— VO → Entity</li>
- *   <li>{@code toResponseVO()} —— Entity → VO（完整详情）</li>
- *   <li>{@code toListAssetVO()} —— Entity → VO（分页列表精简）</li>
- * </ul>
+ * 资产对象映射转换器
  */
 @Mapper(componentModel = "spring")
 public interface AssetMapstruct {

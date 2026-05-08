@@ -8,6 +8,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 资产 VO
+ */
 public class AssetVO {
 
     @Data
