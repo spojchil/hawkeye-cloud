@@ -1,11 +1,11 @@
 package com.hawkeye.vul.common.enums;
 
 /**
- * 漏洞严重程度枚举，映射 Nuclei 模板的 severity 字段。
- * <p>
- * 数据库存 VARCHAR，不需要 IEnum<Integer> 自动映射。
- * {@link #fromNucleiSeverity(String)} 负责 YAML 字符串 → VulSeverityEnum。
- * DB 中存枚举名小写（如 "low"、"high"），读写时通过 {@code name().toLowerCase()} 互转。
+ * 漏洞严重程度枚举，映射 Nuclei 模板 severity 字段
+ *
+ * <p>DB 存 VARCHAR（"low"/"high"），不需要 IEnum。
+ * {@link #fromNucleiSeverity(String)} 负责 YAML 字符串转换，
+ * {@link #fromDbValue(String)} 负责 DB 反序列化。</p>
  */
 public enum VulSeverityEnum {
     INFO("信息"),
@@ -40,7 +40,7 @@ public enum VulSeverityEnum {
     }
 
     /**
-     * 从 DB 存的小写字符串反序列化。
+     * 从 DB 反序列化
      */
     public static VulSeverityEnum fromDbValue(String value) {
         if (value == null) {

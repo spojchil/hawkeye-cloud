@@ -6,6 +6,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 模板详情 VO
+ */
 public class VulTemplateVO {
 
     @Data

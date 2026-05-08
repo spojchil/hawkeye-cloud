@@ -3,13 +3,17 @@ package com.hawkeye.vul.common.pojo.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+/**
+ * HTTP 探测步骤
+ */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("vul_http_step")
-public class VulHttpStep extends BaseVulEntity {
+public class VulHttpStep extends BaseEntity {
 
     @TableId(type = IdType.AUTO)
     private Long httpId;
@@ -28,16 +32,13 @@ public class VulHttpStep extends BaseVulEntity {
     /** JSON key-value pairs */
     private String headers;
 
-    /** Reference to vul_text_content.text_id */
     private Long bodyTextId;
 
-    /** Reference to vul_text_content.text_id (raw HTTP with request line + headers + body) */
     private Long rawTextId;
 
     /** and / or */
     private String matchersCondition;
 
-    /** batteringram / pitchfork / clusterbomb */
     private String attack;
 
     /** JSON: payload definitions */

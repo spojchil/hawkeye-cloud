@@ -49,7 +49,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     private final VulExtractorMapper extractorMapper;
     private final VulTextContentMapper textContentMapper;
 
-    // ── 分页 ──────────────────────────────────────────
+    /* 分页 */
 
     @Override
     @LogExecutionTime("模板分页查询")
@@ -99,7 +99,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return ListResult.result((int) result.getTotal(), voList);
     }
 
-    // ── 详情 ──────────────────────────────────────────
+    /* 详情 */
 
     @Override
     @LogExecutionTime("查询模板详情")
@@ -115,7 +115,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return assembleDetail(template);
     }
 
-    // ── 删除 ──────────────────────────────────────────
+    /* 删除 */
 
     @Override
     @LogExecutionTime("删除模板")
@@ -139,7 +139,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                         .set(VulTemplate::getDeletedAt, now));
     }
 
-    // ── 导入模板（Spring MVC 自动反序列化 + @Valid 校验） ─
+    /* 导入模板（Spring MVC 自动反序列化 + @Valid 校验） */
 
     @Override
     @LogExecutionTime("导入模板")
@@ -148,7 +148,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         String yamlId = dto.getId();
         NucleiTemplateVO.InfoVO info = dto.getInfo();
 
-        // 同租户 + 同 yamlId + 未删除 → 拒绝重复导入
+        /* 同租户 + 同 yamlId + 未删除 → 拒绝重复导入 */
         VulTemplate dup = baseMapper.selectOne(
                 new LambdaQueryWrapper<VulTemplate>()
                         .eq(VulTemplate::getDeletedAt, 0L)
@@ -183,7 +183,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         baseMapper.insert(template);
         Long templateId = template.getTemplateId();
 
-        // 标签 / 参考链接 / 分类 / HTTP 步骤（灵活部分仍用 Map 解析）
+        /* 标签 / 参考链接 / 分类 / HTTP 步骤（灵活部分仍用 Map 解析） */
         saveTags(templateId, parseTagList(info.getTags()));
         saveReferences(templateId, info.getReference());
         if (categoryIds != null && !categoryIds.isEmpty()) {
@@ -204,11 +204,11 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                         .eq(VulTemplate::getYamlId, yamlId));
     }
 
-    // ── 导入：标签 ────────────────────────────────────
+    /* 导入：标签 */
 
     private void saveTags(Long templateId, List<String> tagNames) {
         if (tagNames == null || tagNames.isEmpty()) return;
-        // 去重：同模板的标签可能在前端 JSON 中重复出现
+        /* 去重：同模板的标签可能在前端 JSON 中重复出现 */
         Set<String> seen = new HashSet<>();
         for (String name : tagNames) {
             String lower = name.toLowerCase();
@@ -222,7 +222,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                 tag.setName(lower);
                 tagMapper.insert(tag);
             }
-            // 检查是否已关联，避免重复导入时报 DuplicateKeyException
+            /* 检查是否已关联，避免重复导入时报 DuplicateKeyException */
             if (templateTagMapper.selectCount(
                     new LambdaQueryWrapper<VulTemplateTag>()
                             .eq(VulTemplateTag::getDeletedAt, 0L)
@@ -255,7 +255,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return Collections.emptyList();
     }
 
-    // ── 导入：参考链接 ────────────────────────────────
+    /* 导入：参考链接 */
 
     private static final int MAX_REF_URL = 2048;
 
@@ -288,7 +288,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return val != null && val.length() > max ? val.substring(0, max) : val;
     }
 
-    // ── 导入：分类 ────────────────────────────────────
+    /* 导入：分类 */
 
     private void saveCategories(Long templateId, List<Long> categoryIds) {
         for (Long catId : categoryIds) {
@@ -299,7 +299,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         }
     }
 
-    // ── 导入：HTTP 步骤 ───────────────────────────────
+    /* 导入：HTTP 步骤 */
 
     @SuppressWarnings("unchecked")
     private void saveHttpSteps(Long templateId, List<?> steps) {
@@ -327,7 +327,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             step.setCookieReuse(bool(s.get("cookie-reuse"), false));
             step.setReqCondition(bool(s.get("req-condition"), false));
 
-            // body → vul_text_content
+            /* body → vul_text_content */
             String body = str(s.get("body"));
             if (!body.isEmpty()) {
                 VulTextContent tc = new VulTextContent();
@@ -336,7 +336,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                 step.setBodyTextId(tc.getTextId());
             }
 
-            // raw → vul_text_content
+            /* raw → vul_text_content */
             Object rawObj = s.get("raw");
             String rawText = rawToList(rawObj);
             if (!rawText.isEmpty()) {
@@ -348,13 +348,13 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
             httpStepMapper.insert(step);
 
-            // matchers
+            /* matchers */
             Object matchersObj = s.get("matchers");
             if (matchersObj instanceof List<?> matchers) {
                 saveMatchers(templateId, order, matchers);
             }
 
-            // extractors
+            /* extractors */
             Object extractorsObj = s.get("extractors");
             if (extractorsObj instanceof List<?> extractors) {
                 saveExtractors(templateId, order, extractors);
@@ -402,7 +402,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             extr.setInternal(bool(e.get("internal"), false));
             extr.setGroupNum(integer(e.get("group"), 1));
 
-            // nuclei extractor: "group" → "groupNum"
+            /* nuclei extractor: "group" → "groupNum" */
             if (e.containsKey("group") && !e.containsKey("groupNum")) {
                 extr.setGroupNum(integer(e.get("group"), 1));
             }
@@ -411,7 +411,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         }
     }
 
-    // ── 软删除级联 ────────────────────────────────────
+    /* 软删除级联 */
 
     private void softDeleteByTemplateId(Long templateId, long nowMs) {
         templateTagMapper.update(null,
@@ -446,7 +446,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
                         .set(VulTemplateCategory::getDeletedAt, nowMs));
     }
 
-    // ── 详情组装 ─────────────────────────────────────
+    /* 详情组装 */
 
     private VulTemplateVO.Response assembleDetail(VulTemplate template) {
         Long templateId = template.getTemplateId();
@@ -539,7 +539,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
             sv.setMatchers(getMatcherVOs(templateId, step.getStepOrder()));
             sv.setExtractors(getExtractorVOs(templateId, step.getStepOrder()));
 
-            // 从 vul_text_content 表获取 raw 和 body 内容
+            /* 从 vul_text_content 表获取 raw 和 body 内容 */
             if (step.getRawTextId() != null) {
                 VulTextContent rawContent = textContentMapper.selectById(step.getRawTextId());
                 if (rawContent != null) {
@@ -600,7 +600,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         }).toList();
     }
 
-    // ── 标签过滤 ─────────────────────────────────────
+    /* 标签过滤 */
 
     private Set<Long> getTemplateIdsByTag(String tagName) {
         List<VulTag> tags = tagMapper.selectList(
@@ -615,7 +615,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         ).stream().map(VulTemplateTag::getTemplateId).collect(Collectors.toSet());
     }
 
-    // ── JSON 解析工具 ────────────────────────────────
+    /* JSON 解析工具 */
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseJsonMap(String json) {
@@ -635,7 +635,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         try { return JSONUtil.toList(json, String.class); } catch (Exception e) { return null; }
     }
 
-    // ── 导入解析工具 ──────────────────────────────────
+    /* 导入解析工具 */
 
     private String normalizeSeverity(String raw) {
         if (raw == null || raw.isEmpty()) return "unknown";
@@ -680,7 +680,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return List.of(path.toString());
     }
 
-    // ── 安全类型转换 ──────────────────────────────────
+    /* 安全类型转换 */
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> map(Object obj) {

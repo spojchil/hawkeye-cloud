@@ -3,13 +3,17 @@ package com.hawkeye.vul.common.pojo.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+/**
+ * 参考链接
+ */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("vul_reference")
-public class VulReference extends BaseVulEntity {
+public class VulReference extends BaseEntity {
 
     @TableId(type = IdType.AUTO)
     private Long referenceId;
