@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("asset")
-public class Asset extends BaseEntity {
+public class Asset extends BaseAssetEntity {
 
     @TableId(type = IdType.AUTO)
     private Long assetId;

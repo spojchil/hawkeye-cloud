@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSON;
 import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.constant.HeaderConstants;
 import com.common.utils.context.RequestContext;
+import com.common.utils.response.ApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;

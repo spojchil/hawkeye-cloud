@@ -14,7 +14,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("vul_template")
-public class VulTemplate extends BaseEntity {
+public class VulTemplate extends BaseVulEntity {
 
     @TableId(type = IdType.AUTO)
     private Long templateId;
