@@ -8,25 +8,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * 匹配器编排器。
- * <p>
- * 负责组合多个匹配器的判定结果，支持 and/or/negative 逻辑。
- * <p>
- * 职责：
- * <ul>
- *   <li>按 outerCondition（步骤级 matchers-condition）组合多个 matcher</li>
- *   <li>处理 negative（结果取反）</li>
- *   <li>不解析 config，只负责编排</li>
- * </ul>
- * <p>
- * 执行流程：
- * <pre>
- *   MatcherPipeline.evaluate(ctx, defs, "or")
- *     ├─ 遍历 defs
- *     ├─ 对每个 def，调用 MatcherRegistry.get(type).match(ctx, def)
- *     ├─ 处理 negative：result = def.isNegative() != result
- *     └─ 按 outerCondition 组合：and（全匹配）/ or（任一匹配）
- * </pre>
+ * 匹配器编排器——通过 MatcherRegistry 按 type 获取匹配器，组合 and/or/negative 判定
  */
 @Component
 public class MatcherPipeline {

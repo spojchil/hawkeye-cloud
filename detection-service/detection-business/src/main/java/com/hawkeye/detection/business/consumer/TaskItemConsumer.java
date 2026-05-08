@@ -15,37 +15,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-// TODO
 /**
- * 检测任务消息消费者。
- * <p>
- * 从 RocketMQ 消费检测任务消息，调用 DetectionEngine 执行检测。
- * <p>
- * 消费模式：
- * <ul>
- *   <li>CLUSTERING - 集群模式，多个实例竞争消费</li>
- *   <li>最大线程数 - 64（支持高并发）</li>
- * </ul>
- * <p>
- * 重试策略：
- * <ul>
- *   <li>消费抛异常 → RocketMQ 自动重投递（默认 16 次 + 递增延迟）</li>
- *   <li>耗竭后转入 %DLQ% 死信队列</li>
- *   <li>数据缺失类错误不应抛异常（避免无意义重试）</li>
- * </ul>
- * <p>
- * 幂等性：
- * <ul>
- *   <li>消费前查询 task_item 表状态，已终态则跳过</li>
- *   <li>防止 RocketMQ 重投导致重复检测</li>
- * </ul>
- * <p>
- * 租户上下文：
- * <ul>
- *   <li>从消息中提取 tenantId，设置到 RequestContext</li>
- *   <li>用于多租户数据隔离</li>
- *   <li>注意：ThreadLocal 在当前单线程消费场景下安全</li>
- * </ul>
+ * 检测任务消息消费者
+ *
+ * <p>CLUSTERING 集群模式，64 线程消费。重试 16 次后进入 %DLQ% 死信。
+ * 消费前查 task_item 状态实现幂等，从消息中提取 tenantId 设置租户上下文。</p>
  */
 @Slf4j
 @Component

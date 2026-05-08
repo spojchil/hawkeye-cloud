@@ -19,8 +19,7 @@ import java.util.Map;
 /**
  * 检测引擎——编排入口
  *
- * <p>接收 RocketMQ 消息 → VariableContext 构建 → FlowInterpreter 编排步骤执行 →
- * HttpExecutor 发送请求 → MatcherPipeline 判定 → ExtractorPipeline 提取 → ResultWriter 写入。</p>
+ * <p>接收消息 → VariableContext → FlowInterpreter → HttpExecutor → MatcherPipeline → ExtractorPipeline → ResultWriter。</p>
  */
 @Slf4j
 @Component

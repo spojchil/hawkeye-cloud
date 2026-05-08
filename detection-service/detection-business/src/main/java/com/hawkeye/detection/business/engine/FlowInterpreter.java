@@ -7,9 +7,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 执行流编排——解析模板 flow 表达式，按条件编排多步 HTTP 请求
+ * 执行流编排——解析模板 flow 表达式（http(1)&&http(2)），按条件编排多步 HTTP 请求
  *
- * <p>flow 为 null 时执行单步。flow 含 && 时全匹配，含 || 时任一匹配即止。</p>
+ * <p>flow 为空时执行单步，&& 全匹配，|| 任一匹配即止。</p>
  */
 @Component
 public class FlowInterpreter {

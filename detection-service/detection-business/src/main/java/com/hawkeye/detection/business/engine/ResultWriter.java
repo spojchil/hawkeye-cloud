@@ -17,18 +17,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 检测结果批量写入器。
- * <p>
- * 更新 task_item 表的检测结果字段，同时更新 Redis 计数。
- * <p>
- * 设计要点：
- * <ol>
- *   <li><b>批量缓冲</b>：使用 ConcurrentLinkedQueue 缓冲检测结果</li>
- *   <li><b>高效计数</b>：使用 AtomicInteger 计数器</li>
- *   <li><b>定时刷新</b>：每 5 秒自动刷新缓冲区</li>
- *   <li><b>阈值触发</b>：缓冲区达到 500 条时立即触发写入</li>
- *   <li><b>优雅关闭</b>：@PreDestroy 钩子确保应用关闭时数据不丢失</li>
- * </ol>
+ * 检测结果批量写入器——ConcurrentLinkedQueue 缓冲 + 500条/5秒双触发批量 UPDATE + Redis INCR 计数
+ *
+ * <p>Redis INCR 带 SETNX 幂等保护，@PreDestroy 优雅关闭，保证不丢数据。</p>
  */
 @Slf4j
 @Component
@@ -123,10 +114,9 @@ public class ResultWriter {
     }
 
     /**
-     * 更新 Redis 计数（幂等）。
-     * <p>
-     * 使用 SETNX 确保同一 itemId 只计数一次，防止重复消费导致计数膨胀。
-     * key 格式：task:{taskId}:{status}，TTL 24 小时。
+     * 更新 Redis 计数（带 SETNX 幂等保护）。
+     *
+     * <p>key 格式 task:{taskId}:{status}，TTL 24h。</p>
      */
     private void updateRedisCounter(DetectionResultUpdate result) {
         try {
