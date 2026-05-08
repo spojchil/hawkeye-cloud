@@ -4,35 +4,7 @@ import com.hawkeye.detection.business.engine.model.ExtractorDef;
 import com.hawkeye.detection.business.engine.model.HttpResponseContext;
 
 /**
- * 提取器策略接口。
- * <p>
- * 每种提取类型（regex、kval、json、dsl 等）都需要实现此接口，
- * 并使用 @Component 注解注册为 Spring Bean。
- * <p>
- * ExtractorRegistry 会自动收集所有 Extractor 实现，按 type 注册。
- * <p>
- * 实现示例：
- * <pre>
- * @Component
- * public class RegexExtractor implements Extractor {
- *     @Override
- *     public String type() { return "regex"; }
- *
- *     @Override
- *     public String extract(HttpResponseContext ctx, ExtractorDef def) {
- *         // 从响应中提取变量值
- *         return extractedValue;
- *     }
- * }
- * </pre>
- * <p>
- * 支持的提取类型：
- * <ul>
- *   <li>regex - 正则表达式提取</li>
- *   <li>kval - 键值提取（从响应头提取）</li>
- *   <li>json - JSON 路径提取</li>
- *   <li>dsl - DSL 表达式提取</li>
- * </ul>
+ * 提取器接口——type() 返回提取器类型标识，extract() 执行提取并返回结果
  */
 public interface Extractor {
 

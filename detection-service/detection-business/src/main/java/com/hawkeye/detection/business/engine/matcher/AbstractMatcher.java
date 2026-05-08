@@ -6,21 +6,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * 匹配器抽象基类。
- * <p>
- * 提供通用的规则组合逻辑，子类只需实现具体的匹配逻辑。
- * <p>
- * 功能：
- * <ul>
- *   <li>evaluateInner() - 按 innerCondition 组合多条规则（and/or）</li>
- *   <li>part() - 从 HTTP 响应中提取匹配目标（body/header/all）</li>
- * </ul>
- * <p>
- * 子类只需关注：
- * <ul>
- *   <li>type() - 返回匹配器类型标识</li>
- *   <li>match() - 实现具体的匹配逻辑</li>
- * </ul>
+ * 匹配器抽象基类——提供 evaluateInner（and/or 组合）和 part（响应提取）两个模板方法
  */
 public abstract class AbstractMatcher implements Matcher {
 
@@ -42,7 +28,7 @@ public abstract class AbstractMatcher implements Matcher {
         if ("and".equals(condition)) {
             return rules.stream().allMatch(tester);
         }
-        // 默认 or
+        /* 默认 or */
         return rules.stream().anyMatch(tester);
     }
 
