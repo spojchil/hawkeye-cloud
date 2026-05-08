@@ -24,6 +24,18 @@ docker compose up -d --build
 | 网关入口 | http://localhost:8001 |
 | Nacos 控制台 | http://localhost:8848/nacos （nacos / nacos） |
 
+**环境切换：**
+
+```bash
+# 开发环境（默认，DEBUG 日志 + Knife4j 文档）
+docker compose up -d --build
+
+# 生产环境（INFO 日志 + 关闭 Knife4j）
+SPRING_PROFILES_ACTIVE=prod docker compose up -d --build
+```
+
+各服务 `application-prod.yml` 已配置：knife4j 关闭，日志降至 INFO 级别。
+
 前置依赖：JDK 21、Maven 3.9+、Docker。
 
 ---

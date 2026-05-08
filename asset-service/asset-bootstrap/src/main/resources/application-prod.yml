@@ -1,0 +1,8 @@
+logging:
+  level:
+    com.hawkeye.asset.business.mapper: info
+    com.hawkeye.asset.business.service: info
+    com.hawkeye.asset.api.controller: info
+
+knife4j:
+  enable: false
