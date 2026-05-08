@@ -18,7 +18,6 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
-
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiResponse<Void>> handleApiException(ApiException ex) {
         log.warn("业务异常 [{}] {} | {}", ex.getCode(), ex.getHttpCode(), ex.getMessage());
@@ -79,7 +78,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleException(Exception ex) {
         log.error("未预期的异常", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.internalServerError(CommonErrorCode.INTERNAL_ERROR.getCode(),
-                        CommonErrorCode.INTERNAL_ERROR.getMessage()));
+                .body(ApiResponse.failure(CommonErrorCode.INTERNAL_ERROR));
     }
 }

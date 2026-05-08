@@ -31,9 +31,13 @@ CREATE TABLE IF NOT EXISTS `account`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci COMMENT = '账号表';
 
--- 初始管理员 / 密码是 password
+-- 平台管理员 / 密码 password
 INSERT INTO account(username, password, tenant_id)
 VALUES ('admin', '$2a$10$gp1t.ArJv56l/aTNemMube9qdo1wHUhi5Fj2StYYhoPWK3QLg7jFS', 0);
+
+-- 演示租户 / 密码 password
+INSERT INTO account(username, password, tenant_id)
+VALUES ('demo', '$2a$10$gp1t.ArJv56l/aTNemMube9qdo1wHUhi5Fj2StYYhoPWK3QLg7jFS', 1);
 
 -- ============================================================
 -- 租户管理
@@ -58,3 +62,7 @@ CREATE TABLE IF NOT EXISTS `tenant`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci COMMENT = '租户表';
+
+-- 平台（tenant_id=0 为平台内置，无需显式插入 tenant 记录）
+INSERT INTO tenant(tenant_id, name, contact_email, status)
+VALUES (1, '演示租户', 'demo@example.com', 0);
