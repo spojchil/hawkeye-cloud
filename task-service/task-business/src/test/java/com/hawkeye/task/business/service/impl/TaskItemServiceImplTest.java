@@ -72,7 +72,7 @@ class TaskItemServiceImplTest {
     @Test
     @DisplayName("更新结果 — MATCHED 状态回写成功")
     void updateResultSuccess() {
-        TaskItem item = buildItem(100L, 5001L, 10L, 20L, TaskItemStatusEnum.PENDING);
+        TaskItem item = buildItem(100L, 5001L, 10L, 20L);
         when(taskItemMapper.selectById(100L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
@@ -92,7 +92,7 @@ class TaskItemServiceImplTest {
     @Test
     @DisplayName("更新结果 — FAILED 状态回写（网络超时）")
     void updateResultFailed() {
-        TaskItem item = buildItem(200L, 5001L, 30L, 40L, TaskItemStatusEnum.PENDING);
+        TaskItem item = buildItem(200L, 5001L, 30L, 40L);
         when(taskItemMapper.selectById(200L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
@@ -108,7 +108,7 @@ class TaskItemServiceImplTest {
     @Test
     @DisplayName("更新结果 — NOT_MATCHED 状态回写（检测未命中）")
     void updateResultNoMatch() {
-        TaskItem item = buildItem(300L, 5002L, 50L, 60L, TaskItemStatusEnum.PENDING);
+        TaskItem item = buildItem(300L, 5002L, 50L, 60L);
         when(taskItemMapper.selectById(300L)).thenReturn(item);
         when(taskItemMapper.updateById((TaskItem) any())).thenReturn(1);
 
@@ -141,14 +141,13 @@ class TaskItemServiceImplTest {
 
     // === helper ===
 
-    private TaskItem buildItem(Long itemId, Long taskId, Long assetId, Long vulId,
-                               TaskItemStatusEnum status) {
+    private TaskItem buildItem(Long itemId, Long taskId, Long assetId, Long vulId) {
         TaskItem item = new TaskItem();
         item.setItemId(itemId);
         item.setTaskId(taskId);
         item.setAssetId(assetId);
         item.setVulId(vulId);
-        item.setStatus(status);
+        item.setStatus(TaskItemStatusEnum.PENDING);
         return item;
     }
 }

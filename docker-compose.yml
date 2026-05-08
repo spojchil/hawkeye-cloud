@@ -88,6 +88,7 @@ services:
       NACOS_HOST: nacos
       NACOS_PORT: 8848
       SERVER_PORT: 8001
+      SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8001:8001"
     depends_on:
@@ -115,6 +116,7 @@ services:
       NACOS_HOST: nacos
       NACOS_PORT: 8848
       SERVER_PORT: 8002
+      SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8002:8002"
     depends_on:
@@ -141,6 +143,7 @@ services:
       NACOS_HOST: nacos
       NACOS_PORT: 8848
       SERVER_PORT: 8003
+      SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8003:8003"
     depends_on:
@@ -165,6 +168,7 @@ services:
       NACOS_HOST: nacos
       NACOS_PORT: 8848
       SERVER_PORT: 8004
+      SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8004:8004"
     depends_on:
@@ -194,6 +198,7 @@ services:
       ROCKETMQ_HOST: rocketmq-namesrv
       ROCKETMQ_PORT: 9876
       SERVER_PORT: 8005
+      SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8005:8005"
     depends_on:
@@ -225,6 +230,7 @@ services:
       ROCKETMQ_HOST: rocketmq-namesrv
       ROCKETMQ_PORT: 9876
       SERVER_PORT: 8006
+      SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8006:8006"
     depends_on:

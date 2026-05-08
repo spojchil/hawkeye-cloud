@@ -7,6 +7,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 检测结果（日志表，不继承 BaseEntity）
+ */
 @Data
 @TableName("detection_result")
 public class DetectionResult {

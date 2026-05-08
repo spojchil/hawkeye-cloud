@@ -17,12 +17,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 检测引擎 — 核心编排器。
- * <p>
- * 职责：
- * 1. 接收 RocketMQ 消息，初始化检测上下文
- * 2. 解析执行流程（flow），逐步执行 HTTP 请求
- * 3. 协调变量解析、匹配判定、结果写入
+ * 检测引擎——编排入口
+ *
+ * <p>接收消息 → VariableContext → FlowInterpreter → HttpExecutor → MatcherPipeline → ExtractorPipeline → ResultWriter。</p>
  */
 @Slf4j
 @Component
@@ -46,86 +43,41 @@ public class DetectionEngine {
         this.resultWriter = resultWriter;
     }
 
-    /**
-     * 执行检测任务。
-     *
-     * @param msg RocketMQ 消息，包含完整的检测配置
-     */
     @LogExecutionTime
     public void execute(TaskItemMessage msg) {
         long startTime = System.currentTimeMillis();
-
         try {
-            // 校验消息有效性
             if (msg.getHttpSteps() == null || msg.getHttpSteps().isEmpty()) {
                 writeResult(msg, DetectionStatusEnum.ERROR, null, null, "消息中无 HTTP 步骤", startTime);
                 return;
             }
-
-            // 初始化变量上下文
             VariableContext vars = new VariableContext(msg);
-
-            // 解析 flow 表达式，逐步执行 HTTP 请求
             boolean matched = flowInterpreter.execute(msg.getHttpSteps(), msg.getFlow(),
                     step -> executeStep(step, vars));
-
-            // 记录执行耗时
             Object dur = vars.get("duration");
             int durationMs = dur instanceof Long d ? d.intValue() : 0;
-
-            // 写入结果
             DetectionStatusEnum status = matched ? DetectionStatusEnum.MATCHED : DetectionStatusEnum.NOT_MATCHED;
             writeResult(msg, status, null, matched ? LocalDateTime.now() : null, null, startTime);
-
         } catch (Exception e) {
             handleException(e, msg, startTime);
         }
     }
 
-    /**
-     * 写入检测结果。
-     */
     private void writeResult(TaskItemMessage msg, DetectionStatusEnum status,
                              Integer responseStatusCode, LocalDateTime matchedAt,
                              String errorMessage, long startTime) {
         int durationMs = (int) (System.currentTimeMillis() - startTime);
-
         ResultWriter.DetectionResultUpdate result = new ResultWriter.DetectionResultUpdate(
-                msg.getTaskId(),
-                msg.getItemId(),
-                status.getValue(),
-                responseStatusCode,
-                null,  // responseSize
-                null,  // responseSummary
-                null,  // matchedMatcher
-                matchedAt,
-                errorMessage,
-                durationMs
-        );
-
+                msg.getTaskId(), msg.getItemId(), status.getValue(),
+                responseStatusCode, null, null, null, matchedAt, errorMessage, durationMs);
         resultWriter.write(result);
     }
 
-    /**
-     * 执行单个 HTTP 步骤。
-     */
     private boolean executeStep(HttpStep step, VariableContext vars) {
         HttpRequestConfig config = buildRequestConfig(step);
-
-        log.debug("executeStep: method={}, paths={}, raw={}",
-                config.getMethod(), config.getPaths(),
-                config.getRaw() != null ? config.getRaw().substring(0, Math.min(50, config.getRaw().length())) + "..." : "null");
-
-        // 发送 HTTP 请求
         HttpResponseContext ctx = sendRequest(config, vars);
-
-        // 更新变量上下文
         vars.updateFrom(ctx);
-
-        // 执行提取器
         executeExtractors(step, ctx, vars);
-
-        // 执行匹配器
         return executeMatchers(step, ctx);
     }
 
@@ -147,7 +99,6 @@ public class DetectionEngine {
                 return httpExecutor.execute(config, vars);
             }
         } catch (IOException e) {
-            // 改进错误消息：使用异常类名而不是可能为 null 的 getMessage
             String errorMsg = e.getMessage();
             if (errorMsg == null || errorMsg.isEmpty()) {
                 errorMsg = e.getClass().getSimpleName();
@@ -160,29 +111,19 @@ public class DetectionEngine {
     }
 
     private void executeExtractors(HttpStep step, HttpResponseContext ctx, VariableContext vars) {
-        if (step.getExtractors() == null || step.getExtractors().isEmpty()) {
-            return;
-        }
-
-        List<ExtractorDef> defs = step.getExtractors().stream()
-                .map(this::toExtractorDef)
-                .toList();
+        if (step.getExtractors() == null || step.getExtractors().isEmpty()) return;
+        List<ExtractorDef> defs = step.getExtractors().stream().map(this::toExtractorDef).toList();
         extractorPipeline.extract(ctx, defs, vars);
     }
 
     private boolean executeMatchers(HttpStep step, HttpResponseContext ctx) {
-        if (step.getMatchers() == null || step.getMatchers().isEmpty()) {
-            return false;
-        }
-
-        List<MatcherDef> defs = step.getMatchers().stream()
-                .map(this::toMatcherDef)
-                .toList();
-
+        if (step.getMatchers() == null || step.getMatchers().isEmpty()) return false;
+        List<MatcherDef> defs = step.getMatchers().stream().map(this::toMatcherDef).toList();
         String outerCondition = step.getMatchersCondition() != null ? step.getMatchersCondition() : "or";
         return matcherPipeline.evaluate(ctx, defs, outerCondition);
     }
 
+    /* 将消息中的 Extractor DTO 转为引擎 ExtractorDef */
     private ExtractorDef toExtractorDef(TaskItemMessage.Extractor e) {
         ExtractorDef ed = new ExtractorDef();
         ed.setType(e.getType());
@@ -195,6 +136,7 @@ public class DetectionEngine {
         return ed;
     }
 
+    /* 将消息中的 Matcher DTO 转为引擎 MatcherDef */
     private MatcherDef toMatcherDef(TaskItemMessage.Matcher md) {
         MatcherDef def = new MatcherDef();
         def.setType(md.getType());

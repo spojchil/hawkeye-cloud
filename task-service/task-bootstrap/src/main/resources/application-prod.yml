@@ -1,0 +1,9 @@
+logging:
+  level:
+    com.hawkeye.task.business.mapper: info
+    com.hawkeye.task.business.service: info
+    com.hawkeye.task.api.controller: info
+    com.hawkeye.task.scheduler: info
+
+knife4j:
+  enable: false

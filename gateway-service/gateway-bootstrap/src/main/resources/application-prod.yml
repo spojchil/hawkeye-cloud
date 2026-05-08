@@ -1,0 +1,6 @@
+logging:
+  level:
+    com.hawkeye.gateway.business: info
+
+knife4j:
+  enable: false

@@ -33,7 +33,7 @@ public class Task extends BaseEntity {
     /** 状态枚举 */
     private TaskStatusEnum status;
 
-    // TODO 这里是初始的输入，不是有效的检测项，
+    /* TODO 这里是初始的输入，不是有效的检测项 */
     /** 检测项总数 = 资产数 × 模板数，拆分完成后回填 */
     private Integer totalItems;
 

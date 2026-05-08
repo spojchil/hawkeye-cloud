@@ -10,9 +10,9 @@ import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
 import com.common.utils.response.ListResult;
-import com.hawkeye.asset.business.mapstruct.AssetMapstruct;
 import com.hawkeye.asset.business.mapper.AssetCategoryMappingMapper;
 import com.hawkeye.asset.business.mapper.AssetMapper;
+import com.hawkeye.asset.business.mapstruct.AssetMapstruct;
 import com.hawkeye.asset.business.service.AssetService;
 import com.hawkeye.asset.common.enums.AssetRiskEnum;
 import com.hawkeye.asset.common.enums.AssetStatusEnum;
@@ -25,9 +25,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.List;
 
+/**
+ * 资产服务实现
+ */
 @Service
 @RequiredArgsConstructor
 public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements AssetService {
@@ -60,7 +62,7 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
             ).stream().map(AssetCategoryMapping::getAssetId).distinct().toList();
 
             if (assetIds.isEmpty()) {
-                return ListResult.result(0, Collections.emptyList());
+                return ListResult.result(0, List.of());
             }
             wrapper.in(Asset::getAssetId, assetIds);
         }

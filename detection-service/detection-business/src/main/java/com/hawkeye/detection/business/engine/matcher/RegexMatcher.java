@@ -9,7 +9,6 @@ import java.util.regex.Pattern;
 
 /**
  * 正则匹配器。
- * <p>
  * 使用 ConcurrentHashMap 缓存编译后的 Pattern，避免重复编译。
  */
 @Component

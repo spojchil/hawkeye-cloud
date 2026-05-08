@@ -14,10 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 检测项服务实现。
- * <p>
- * 注：检测结果现在直接存储在 task_item 表中，由 detection-service 直接更新。
- * 此服务主要用于查询和管理检测项。
+ * 检测项服务实现——结果由 detection-service 直写 task_item 表
  */
 @Service
 @RequiredArgsConstructor

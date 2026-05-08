@@ -12,27 +12,9 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * DSL 表达式匹配器。
- * <p>
- * 使用 Aviator 表达式引擎执行复杂的匹配逻辑。
- * <p>
- * 支持的 DSL 函数：
- * <ul>
- *   <li>contains(str, substr) - 字符串包含</li>
- *   <li>contains_all(str, ...) - 全部包含</li>
- *   <li>contains_any(str, ...) - 任一包含</li>
- *   <li>regex(pattern, input) - 正则匹配</li>
- *   <li>tolower(str) - 转小写</li>
- *   <li>toupper(str) - 转大写</li>
- * </ul>
- * <p>
- * 可用变量：
- * <ul>
- *   <li>body - 响应体</li>
- *   <li>status_code - 状态码</li>
- *   <li>content_type - 内容类型</li>
- *   <li>all_headers - 所有响应头</li>
- * </ul>
+ * DSL 表达式匹配器——使用 Aviator 引擎执行复杂匹配
+ *
+ * <p>DSL 函数见 {@link DslFunctions}，变量见 {@link #buildVars}。</p>
  */
 @Slf4j
 @Component
@@ -68,15 +50,15 @@ public class DslMatcher extends AbstractMatcher {
      * 将 Nuclei 风格的函数调用转换为 Aviator 语法。
      */
     private String preprocess(String dsl) {
-        // contains(body, 'text') → string.contains(body, 'text')
+        /* contains(body, 'text') → string.contains(body, 'text') */
         dsl = dsl.replaceAll(
                 "contains\\(\\s*([a-z_]+)\\s*,\\s*('[^']*')\\s*\\)",
                 "string.contains($1, $2)");
-        // contains_all(body, 'a', 'b') → string.contains_all(body, 'a', 'b')
+        /* contains_all(body, 'a', 'b') → string.contains_all(body, 'a', 'b') */
         dsl = dsl.replaceAll(
                 "contains_all\\(\\s*([a-z_]+)\\s*,",
                 "string.contains_all($1,");
-        // regex('pattern', body) → string.regex('pattern', body)
+        /* regex('pattern', body) → string.regex('pattern', body) */
         dsl = dsl.replaceAll(
                 "regex\\(\\s*('[^']*')\\s*,\\s*([a-z_]+)\\s*\\)",
                 "string.regex($1, $2)");
@@ -84,7 +66,7 @@ public class DslMatcher extends AbstractMatcher {
     }
 
     /**
-     * 构建 DSL 变量上下文。
+     * 构建 DSL 变量上下文：body / status_code / content_type / content_length / all_headers / duration
      */
     private Map<String, Object> buildVars(HttpResponseContext ctx) {
         Map<String, Object> vars = new HashMap<>();
@@ -112,9 +94,9 @@ public class DslMatcher extends AbstractMatcher {
     }
 
     /**
-     * 静态内部类：提供 DSL 函数实现。
-     * <p>
-     * 这些函数会被注册到 Aviator 中供 DSL 表达式调用。
+     * DSL 函数实现——注册到 Aviator 供表达式调用
+     *
+     * <p>contains(str, substr) / contains_all(str, ...) / regex(pattern, input) / tolower / toupper</p>
      */
     public static class DslFunctions {
         /**

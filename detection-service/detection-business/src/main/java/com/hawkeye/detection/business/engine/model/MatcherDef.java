@@ -5,24 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * 匹配器定义 — 胖 DTO，编译期类型安全。
- * <p>
- * 设计思路：
- * <ul>
- *   <li>每种匹配器类型（word/status/regex/dsl）只读自己关心的字段</li>
- *   <li>其他字段为 null，避免使用 Map 带来的类型转换问题</li>
- *   <li>编译期检查，IDE 补全友好</li>
- * </ul>
- * <p>
- * 字段说明：
- * <ul>
- *   <li>type - 匹配器类型（word/status/regex/dsl）</li>
- *   <li>part - 匹配目标（body/header/all）</li>
- *   <li>condition - 多条规则的组合条件（and/or）</li>
- *   <li>negative - 是否取反</li>
- *   <li>caseInsensitive - 是否忽略大小写</li>
- *   <li>words/status/dsl/regex - 各类型对应的规则列表</li>
- * </ul>
+ * 匹配器定义——每种类型只读自己字段，其他为 null，编译期类型安全
  */
 @Data
 public class MatcherDef {
@@ -51,7 +34,7 @@ public class MatcherDef {
     /** 匹配器名称 */
     private String name;
 
-    // ── type-specific（策略内部按 type 取用）─────────────────────────
+    /* type-specific（策略内部按 type 取用） */
 
     /** word 类型的关键词列表 */
     private List<String> words;

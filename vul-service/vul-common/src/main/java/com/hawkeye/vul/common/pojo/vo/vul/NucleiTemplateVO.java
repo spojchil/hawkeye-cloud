@@ -34,7 +34,7 @@ public class NucleiTemplateVO {
     /** HTTP 步骤 — 每步结构灵活（path/raw/matchers/extractors 可选），保留 Map */
     private List<Map<String, Object>> http;
 
-    // ── info ──
+    /* info */
 
     @Data
     public static class InfoVO {
@@ -72,7 +72,7 @@ public class NucleiTemplateVO {
         private String remediation;
     }
 
-    // ── classification ──
+    /* classification */
 
     @Data
     public static class ClassificationVO {

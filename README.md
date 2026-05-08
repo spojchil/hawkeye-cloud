@@ -24,6 +24,18 @@ docker compose up -d --build
 | 网关入口 | http://localhost:8001 |
 | Nacos 控制台 | http://localhost:8848/nacos （nacos / nacos） |
 
+**环境切换：**
+
+```bash
+# 开发环境（默认，DEBUG 日志 + Knife4j 文档）
+docker compose up -d --build
+
+# 生产环境（INFO 日志 + 关闭 Knife4j）
+SPRING_PROFILES_ACTIVE=prod docker compose up -d --build
+```
+
+各服务 `application-prod.yml` 已配置：knife4j 关闭，日志降至 INFO 级别。
+
 前置依赖：JDK 21、Maven 3.9+、Docker。
 
 ---
@@ -41,7 +53,7 @@ docker compose up -d --build
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | gateway | 8001 | API 网关：路由转发 + JWT 鉴权 |
-| auth | 8002 | 认证：登录 + JWT 签发 |
+| auth | 8002 | 认证：登录 + JWT 签发 + 租户管理 |
 | asset | 8003 | 资产管理：CRUD + 分类树 |
 | vul | 8004 | 漏洞模板：12 表归一化 + YAML 导入 |
 | task | 8005 | 任务调度：提交 → 拆分 → MQ 分发 → 轮询进度 |
@@ -53,9 +65,7 @@ docker compose up -d --build
 ### 核心检测链路
 
 ```
-用户提交任务 → task 拆分(资产×模板) → RocketMQ 投递 → detection 并发探测 → 批量回写
-                                        ↑
-                                   Worker 负载感知投递
+用户提交任务 → task 拆分(资产×模板) → RocketMQ 异步投递 → detection 并发探测 → 批量回写
 ```
 
 ---
@@ -90,6 +100,7 @@ hawkeye-cloud/
 |------|------|
 | [项目说明](docs/项目说明.md) | 定位、技术栈、进度 |
 | [架构设计](docs/架构设计.md) | 整体架构、多租户、检测链路 |
+| [架构演化](docs/架构演化.md) | v1→v3 设计决策与迭代历史 |
 | [API 文档](docs/api/) | 各服务 REST API |
 | [SQL 脚本](docs/sql/) | 各服务 DDL |
 | [开发规范](docs/开发规范补充.md) | 阿里规范 + 项目约定 |

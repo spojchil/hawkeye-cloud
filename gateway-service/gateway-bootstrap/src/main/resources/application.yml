@@ -5,95 +5,57 @@ spring:
   profiles:
     active: dev
 
-  config:
-    import:
-      - optional:nacos:${spring.application.name}.yaml
-      - optional:nacos:common-${spring.profiles.active}.yaml
-
   cloud:
     nacos:
       discovery:
         server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
-#        namespace: ${NACOS_NAMESPACE:dev}
         group: DEFAULT_GROUP
-
     gateway:
-      server:
-        webflux:
-          # 自动根据注册中心服务名生成路由，开发方便调试
-          discovery:
-            locator:
-              enabled: true
-              lower-case-service-id: true
-
-          routes:
-            - id: auth-service
-              uri: lb://auth-service
-              predicates:
-                - Path=/api/auth/**
-              filters:
-                - StripPrefix=1
-
-            - id: asset-service
-              uri: lb://asset-service
-              predicates:
-                - Path=/api/asset/**
-              filters:
-                - StripPrefix=1
-
-            - id: vul-service
-              uri: lb://vul-service
-              predicates:
-                - Path=/api/vul/**
-              filters:
-                - StripPrefix=1
-
-            - id: task-service
-              uri: lb://task-service
-              predicates:
-                - Path=/api/task/**
-              filters:
-                - StripPrefix=1
-
-          # CORS 统一在这里配置
-          globalcors:
-            cors-configurations:
-              '[/**]':
-                allowedOriginPatterns: "*"
-                allowedMethods: "*"
-                allowedHeaders: "*"
-                allowCredentials: true
-                maxAge: 3600
-
-          # 暂时不配限流
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+        - id: asset-service
+          uri: lb://asset-service
+          predicates:
+            - Path=/api/asset/**
+          filters:
+            - StripPrefix=1
+        - id: vul-service
+          uri: lb://vul-service
+          predicates:
+            - Path=/api/vul/**
+          filters:
+            - StripPrefix=1
+        - id: task-service
+          uri: lb://task-service
+          predicates:
+            - Path=/api/task/**
+          filters:
+            - StripPrefix=1
 
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:123456}
-      database: 0
-      timeout: 3000ms
       lettuce:
         pool:
           max-active: 8
-          max-wait: -1ms
-          max-idle: 8
-          min-idle: 0
-        shutdown-timeout: 100ms
-
-server:
-  port: ${SERVER_PORT:8001}
-
-# 定义一个统一的日志级别变量
-custom:
-  log-level: DEBUG
 
 logging:
   level:
-    # 使用变量统一管理
-    org.springframework.cloud.gateway: ${custom.log-level}
-    org.springframework.web: ${custom.log-level}
-    reactor.netty: ${custom.log-level}
-    com.alibaba.nacos: ${custom.log-level}
-    org.springframework.cloud.loadbalancer: ${custom.log-level}
+    com.hawkeye.gateway.business: debug
+
+knife4j:
+  enable: false
+
+server:
+  port: ${SERVER_PORT:8001}

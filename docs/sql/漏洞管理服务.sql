@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS `vul_template`
     `author`       VARCHAR(128) COMMENT '作者, 逗号分隔多人',
     `description`  VARCHAR(3000) COMMENT '漏洞描述',
     `impact`       VARCHAR(512) COMMENT '漏洞影响说明',
-    `severity`     VARCHAR(20)      NOT NULL DEFAULT 'unknown' COMMENT '严重程度: critical/high/medium/low/info/unknown',
+    `severity`     VARCHAR(20)      NOT NULL DEFAULT 'UNKNOWN' COMMENT '严重程度: CRITICAL/HIGH/MEDIUM/LOW/INFO/UNKNOWN',
     `metadata`     JSON COMMENT '自定义元数据, 自由 key-value',
     `cve_id`       VARCHAR(50) COMMENT 'CVE 编号, 如 CVE-2024-27292',
     `cwe_id`       VARCHAR(50) COMMENT 'CWE 编号, 复合用逗号分隔如 CWE-20,CWE-77',

@@ -5,15 +5,19 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.hawkeye.asset.common.enums.AssetRiskEnum;
 import com.hawkeye.asset.common.enums.AssetStatusEnum;
+import com.common.utils.pojo.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
+/**
+ * 资产实体
+ */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("asset")
-public class Asset extends BaseAssetEntity {
+public class Asset extends BaseEntity {
 
     @TableId(type = IdType.AUTO)
     private Long assetId;

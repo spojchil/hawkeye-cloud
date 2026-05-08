@@ -46,5 +46,8 @@ mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.hawkeye.vul.common.pojo.entity
 
+knife4j:
+  enable: true
+
 server:
   port: ${SERVER_PORT:8004}

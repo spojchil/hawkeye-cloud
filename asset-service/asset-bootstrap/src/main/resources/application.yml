@@ -46,5 +46,8 @@ mybatis-plus:
     default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
   type-aliases-package: com.hawkeye.asset.common.pojo.entity
 
+knife4j:
+  enable: true
+
 server:
   port: ${SERVER_PORT:8003}

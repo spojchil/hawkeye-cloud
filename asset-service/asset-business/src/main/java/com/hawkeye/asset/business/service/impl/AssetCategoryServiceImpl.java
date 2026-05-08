@@ -7,22 +7,23 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.common.utils.annotation.LogExecutionTime;
 import com.common.utils.response.ApiException;
 import com.common.utils.response.CommonErrorCode;
-import com.hawkeye.asset.business.mapstruct.AssetCategoryMapstruct;
 import com.hawkeye.asset.business.mapper.AssetCategoryMapper;
 import com.hawkeye.asset.business.mapper.AssetCategoryMappingMapper;
+import com.hawkeye.asset.business.mapstruct.AssetCategoryMapstruct;
 import com.hawkeye.asset.business.service.AssetCategoryService;
 import com.hawkeye.asset.common.pojo.entity.AssetCategory;
 import com.hawkeye.asset.common.pojo.entity.AssetCategoryMapping;
 import com.hawkeye.asset.common.pojo.vo.category.CategoryVO;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Slf4j
+/**
+ * 资产分类服务实现
+ */
 @Service
 @RequiredArgsConstructor
 public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, AssetCategory>
@@ -31,7 +32,7 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
     private final AssetCategoryMapstruct categoryMapstruct;
     private final AssetCategoryMappingMapper mappingMapper;
 
-    @LogExecutionTime("查询分类列表")
+    @LogExecutionTime("查询资产分类列表")
     @Override
     public List<CategoryVO.Response> listCategories(Long parentId, String name) {
         LambdaQueryWrapper<AssetCategory> wrapper = new LambdaQueryWrapper<AssetCategory>()
@@ -46,7 +47,7 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
                 .toList();
     }
 
-    @LogExecutionTime("创建分类")
+    @LogExecutionTime("创建资产分类")
     @Override
     @Transactional
     public CategoryVO.Response create(CategoryVO.Request request) {
@@ -58,7 +59,7 @@ public class AssetCategoryServiceImpl extends ServiceImpl<AssetCategoryMapper, A
         return categoryMapstruct.toResponseVO(category);
     }
 
-    @LogExecutionTime("更新分类")
+    @LogExecutionTime("更新资产分类")
     @Override
     @Transactional
     public CategoryVO.Response update(Long categoryId, CategoryVO.Request request) {

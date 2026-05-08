@@ -7,10 +7,7 @@ import com.hawkeye.task.common.pojo.entity.TaskItem;
 import java.util.List;
 
 /**
- * 检测项预检器。
- * <p>
- * 在任务拆分阶段，对每个（资产 × 模板）组合进行预检，
- * 判断该组合是否有效、是否值得执行检测。
+ * 检测项预检器——判断（资产×模板）组合是否有效
  */
 public interface TaskItemPreChecker {
 

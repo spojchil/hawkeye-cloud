@@ -23,7 +23,7 @@ public class ListResult<T> {
     @Builder.Default
     private List<T> data = new ArrayList<>();
 
-    // 静态工程方法
+    /* 静态工厂方法 */
     public static <T> ListResult<T> result(int total, List<T> data) {
         return ListResult.<T>builder()
                 .total(total)

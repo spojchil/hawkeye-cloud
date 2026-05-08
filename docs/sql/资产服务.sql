@@ -1,17 +1,3 @@
--- ============================================================
--- Hawkeye Cloud — 资产管理服务 建表 DDL
--- 版本：v3.0（与 vul-service DDL 规范统一）
--- ============================================================
--- 约定：
---   主键          table_id 格式（如 asset_id, category_id）
---   租户          0 = 平台通用, >0 = 租户私有
---   逻辑删除       deleted_at BIGINT UNSIGNED, 0=未删除
---   布尔/枚举      TINYINT UNSIGNED, 0/1
---   BIGINT       全部 UNSIGNED
---   时间          DATETIME, NOT NULL, 有默认值
---   人            BIGINT UNSIGNED NOT NULL DEFAULT 0
--- ============================================================
-
 USE hawkeye;
 
 
@@ -30,8 +16,8 @@ CREATE TABLE IF NOT EXISTS `asset`
     `request_port`     SMALLINT UNSIGNED NOT NULL COMMENT '端口号, -1表示使用协议默认端口（应用层处理）',
     `request_path`     VARCHAR(1024)     NOT NULL DEFAULT '/' COMMENT '请求路径',
     `description`      VARCHAR(500) COMMENT '资产描述',
-    `status`           TINYINT UNSIGNED  NOT NULL DEFAULT 1 COMMENT '状态: 0=禁用, 1=启用, 2=弃用',
-    `risk_level`       TINYINT UNSIGNED           DEFAULT 0 COMMENT '风险等级: 0=未知, 1=低, 2=中, 3=高',
+    `status`           VARCHAR(20)       NOT NULL DEFAULT 'ENABLED' COMMENT '状态: DISABLED/ENABLED/DEPRECATED',
+    `risk_level`       VARCHAR(20)                DEFAULT NULL COMMENT '风险等级: UNKNOWN/LOW/MEDIUM/HIGH',
     `last_scan_time`   DATETIME COMMENT '最近扫描时间',
     `tenant_id`        BIGINT UNSIGNED   NOT NULL DEFAULT 0 COMMENT '租户ID, 0=平台通用',
     `create_time`      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
