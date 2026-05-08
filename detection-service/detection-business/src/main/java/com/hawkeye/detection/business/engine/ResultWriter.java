@@ -58,10 +58,9 @@ public class ResultWriter {
         buffer.add(result);
         int count = counter.incrementAndGet();
 
-        // 更新 Redis 计数
+        /* 更新 Redis 计数 */
         updateRedisCounter(result);
-
-        // 达到阈值时触发写入
+        /* 达到阈值时触发写入 */
         if (count >= FLUSH_SIZE) {
             flush();
         }
@@ -93,10 +92,10 @@ public class ResultWriter {
 
         counter.addAndGet(-batch.size());
 
-        // 逐条更新 task_item 表
+        /* 逐条更新 task_item 表 */
         for (DetectionResultUpdate result : batch) {
             try {
-                // 将状态字符串转换为整数
+                /* 将状态字符串转换为整数 */
                 Integer statusCode = switch (result.status()) {
                     case "matched" -> 1;
                     case "not_matched" -> 2;

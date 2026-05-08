@@ -1,6 +1,8 @@
 package com.hawkeye.detection.common.pojo.dto;
 
 import lombok.Data;
+
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +13,7 @@ import java.util.Map;
 @Data
 public class TaskItemMessage implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     private Long taskId;

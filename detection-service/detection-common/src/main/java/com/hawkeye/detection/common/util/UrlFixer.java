@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 public class UrlFixer {
 
-    // 匹配 scheme://authority/path?query#fragment
+    /* 匹配 scheme://authority/path?query#fragment */
     private static final Pattern URI_PATTERN = Pattern.compile(
             "^(\\w+)://([^/?#]+)(/[^?#]*)?(?:\\?([^#]*))?(?:#(.*))?$"
     );
@@ -23,12 +23,12 @@ public class UrlFixer {
         }
 
         String scheme = m.group(1).toLowerCase();
-        String authority = m.group(2).toLowerCase(); // host 大小写不敏感
+        String authority = m.group(2).toLowerCase(); /* host 大小写不敏感 */
         String path = m.group(3) != null ? m.group(3) : "/";
         String query = m.group(4);
         String fragment = m.group(5);
 
-        // 分别编码各组件
+        /* 分别编码各组件 */
         String encodedPath = encodePath(path);
         String encodedQuery = query != null ? encodeQuery(query) : null;
         String encodedFragment = fragment != null ? encodeFragment(fragment) : null;
@@ -41,8 +41,9 @@ public class UrlFixer {
         }
     }
 
-    // ---------- 编码工具 ----------
-
+    /**
+     * 编码工具
+     */
     private static String encodePath(String path) {
         if (path.isEmpty() || path.equals("/")) return path;
         StringBuilder sb = new StringBuilder();
@@ -51,7 +52,7 @@ public class UrlFixer {
             if (i > 0) sb.append('/');
             sb.append(encodePathSegment(segments[i]));
         }
-        // 保留末尾的 /
+        /* 保留末尾的 */
         if (path.endsWith("/") && sb.charAt(sb.length() - 1) != '/') {
             sb.append('/');
         }
@@ -59,7 +60,7 @@ public class UrlFixer {
     }
 
     private static String encodePathSegment(String segment) {
-        // 保留已编码的 %XX，其余按 UTF-8 编码非保留字符之外的内容
+        /* 保留已编码的 %XX，其余按 UTF-8 编码非保留字符之外的内容 */
         StringBuilder sb = new StringBuilder();
         byte[] bytes = segment.getBytes(StandardCharsets.UTF_8);
         for (byte b : bytes) {
@@ -89,17 +90,17 @@ public class UrlFixer {
     }
 
     private static String encodeQueryComponent(String component) {
-        // 使用 URLEncoder，它将空格变为 +，符合 application/x-www-form-urlencoded
+        /* 使用 URLEncoder，它将空格变为 +，符合 application/x-www-form-urlencoded */
         return java.net.URLEncoder.encode(component, StandardCharsets.UTF_8);
     }
 
     private static String encodeFragment(String fragment) {
-        // 片段与路径段处理类似
+        /* 片段与路径段处理类似 */
         return encodePathSegment(fragment);
     }
 
     private static boolean isUnreserved(int c) {
-        // RFC 3986 unreserved: A-Z a-z 0-9 - . _ ~
+        /* RFC 3986 unreserved: A-Z a-z 0-9 - . _ ~ */
         return (c >= 'A' && c <= 'Z') ||
                 (c >= 'a' && c <= 'z') ||
                 (c >= '0' && c <= '9') ||

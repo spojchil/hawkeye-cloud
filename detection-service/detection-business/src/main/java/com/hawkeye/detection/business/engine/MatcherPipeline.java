@@ -48,19 +48,16 @@ public class MatcherPipeline {
     public boolean evaluate(HttpResponseContext ctx, List<MatcherDef> defs, String outerCondition) {
         if (defs == null || defs.isEmpty()) return false;
 
-        // 构建评估器：对每个 def 执行匹配，并处理 negative
+        /* 构建评估器：对每个 def 执行匹配，negative=true 时取反 */
         Predicate<MatcherDef> evaluator = def -> {
             var m = registry.get(def.getType());
             boolean result = m.match(ctx, def);
-            // negative=true 时取反
             return def.isNegative() != result;
         };
-
-        // 按 outerCondition 组合
+        /* 按 outerCondition 组合结果，"and" 全匹配，默认 "or" */
         if ("and".equals(outerCondition)) {
             return defs.stream().allMatch(evaluator);
         }
-        // 默认 or
         return defs.stream().anyMatch(evaluator);
     }
 }

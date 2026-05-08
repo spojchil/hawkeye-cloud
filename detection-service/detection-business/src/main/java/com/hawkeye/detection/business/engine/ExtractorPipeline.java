@@ -46,14 +46,10 @@ public class ExtractorPipeline {
         if (defs == null) return;
 
         for (ExtractorDef def : defs) {
-            // 跳过没有 name 的提取器（无法存储结果）
-            if (def.getName() == null) continue;
-
-            // 获取提取器并执行
+            /* 跳过没有 name 的提取器（无法存储结果） */
             var e = registry.get(def.getType());
             String value = e.extract(ctx, def);
-
-            // 提取成功则写入变量上下文
+            /* 提取成功则写入变量上下文 */
             if (value != null) {
                 vars.set(def.getName(), value);
             }

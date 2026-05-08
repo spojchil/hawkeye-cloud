@@ -11,16 +11,7 @@ import java.util.function.Predicate;
 public abstract class AbstractMatcher implements Matcher {
 
     /**
-     * 按 innerCondition 组合多条规则。
-     * <p>
-     * innerCondition 定义了单个 matcher 内部多条规则之间的关系：
-     * - "and"：所有规则都必须匹配
-     * - "or"（默认）：任一规则匹配即可
-     *
-     * @param rules     规则列表
-     * @param condition 组合条件（and/or）
-     * @param tester    规则测试器
-     * @return true 如果组合匹配成功
+     * 按 innerCondition 组合多条规则。"and" 全匹配，"or" 任一匹配。
      */
     protected boolean evaluateInner(List<?> rules, String condition, Predicate<Object> tester) {
         if (rules == null || rules.isEmpty()) return false;
@@ -33,16 +24,7 @@ public abstract class AbstractMatcher implements Matcher {
     }
 
     /**
-     * 从 HTTP 响应中提取匹配目标。
-     * <p>
-     * part 参数指定匹配的响应部分：
-     * - "body"（默认）：响应体
-     * - "header"：响应头
-     * - "all"：响应体 + 响应头
-     *
-     * @param ctx  HTTP 响应上下文
-     * @param part 匹配目标部分
-     * @return 匹配目标字符串
+     * 从 HTTP 响应中提取匹配目标。part 为空或 "body" 取响应体，"header" 取响应头，"all" 取两者。
      */
     protected String part(HttpResponseContext ctx, String part) {
         if (part == null || "body".equals(part)) {

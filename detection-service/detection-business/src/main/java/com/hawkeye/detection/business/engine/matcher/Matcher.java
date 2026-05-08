@@ -10,7 +10,6 @@ public interface Matcher {
 
     /**
      * 匹配器类型标识。
-     * <p>
      * 对应数据库 vul_matcher.type 字段。
      *
      * @return 类型标识（如 "word"、"status"、"regex"、"dsl"）

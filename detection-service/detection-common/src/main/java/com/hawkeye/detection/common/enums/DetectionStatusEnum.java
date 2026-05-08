@@ -1,8 +1,11 @@
 package com.hawkeye.detection.common.enums;
 
+import lombok.Getter;
+
 /**
  * 检测结果状态
  */
+@Getter
 public enum DetectionStatusEnum {
 
     MATCHED("matched"),
@@ -15,7 +18,4 @@ public enum DetectionStatusEnum {
         this.value = value;
     }
 
-    public String getValue() {
-        return value;
-    }
 }

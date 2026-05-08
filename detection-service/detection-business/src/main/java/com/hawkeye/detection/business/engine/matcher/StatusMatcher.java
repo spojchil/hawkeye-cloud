@@ -6,16 +6,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * HTTP 状态码匹配器。
- * <p>
  * 检查 HTTP 响应状态码是否在指定列表中。
- * <p>
- * 配置示例：
- * <pre>
- * {
- *   "type": "status",
- *   "status": [200, 301, 302]
- * }
- * </pre>
  */
 @Component
 public class StatusMatcher extends AbstractMatcher {
