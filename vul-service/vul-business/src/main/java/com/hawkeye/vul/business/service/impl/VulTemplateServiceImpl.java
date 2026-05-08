@@ -13,6 +13,7 @@ import com.common.utils.response.ListResult;
 import com.hawkeye.vul.business.mapstruct.VulTemplateMapstruct;
 import com.hawkeye.vul.business.mapper.*;
 import com.hawkeye.vul.business.service.VulTemplateService;
+import com.hawkeye.vul.common.enums.VulSeverityEnum;
 import com.hawkeye.vul.common.pojo.entity.*;
 import com.hawkeye.vul.common.pojo.vo.vul.NucleiTemplateVO;
 import com.hawkeye.vul.common.pojo.vo.vul.VulTemplatePageVO;
@@ -31,8 +32,6 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         implements VulTemplateService {
 
     private static final int PAGE_SIZE_MAX = 100;
-    private static final Set<String> VALID_SEVERITIES =
-            Set.of("critical", "high", "medium", "low", "info", "unknown");
     private static final Set<String> MATCHER_CONFIG_KEYS =
             Set.of("words", "regex", "status", "size", "dsl", "xpath", "binary");
     private static final Set<String> EXTRACTOR_CONFIG_KEYS =
@@ -237,22 +236,20 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
     }
 
     private List<String> parseTagList(Object tagsRaw) {
-        if (tagsRaw == null) return Collections.emptyList();
-        if (tagsRaw instanceof String s) {
-            return Arrays.stream(s.split(","))
+        return switch (tagsRaw) {
+            case null -> Collections.emptyList();
+            case String s -> Arrays.stream(s.split(","))
                     .map(String::trim)
                     .filter(s2 -> !s2.isEmpty())
                     .distinct()
                     .toList();
-        }
-        if (tagsRaw instanceof List<?> list) {
-            return list.stream()
+            case List<?> list -> list.stream()
                     .map(Object::toString)
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .toList();
-        }
-        return Collections.emptyList();
+            default -> Collections.emptyList();
+        };
     }
 
     /* 导入：参考链接 */
@@ -261,26 +258,32 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
     @SuppressWarnings("unchecked")
     private void saveReferences(Long templateId, Object refRaw) {
-        if (refRaw == null) return;
-        if (refRaw instanceof List<?> list) {
-            for (Object item : list) {
-                VulReference ref = new VulReference();
-                ref.setTemplateId(templateId);
-                if (item instanceof String s) {
-                    ref.setUrl(trimTo(s.trim(), MAX_REF_URL));
-                } else if (item instanceof Map<?, ?> m) {
-                    ref.setUrl(trimTo(str(((Map<String, Object>) m).get("url"), str(m.get("link"))), MAX_REF_URL));
-                    ref.setTitle(str(((Map<String, Object>) m).get("title")));
-                }
-                if (ref.getUrl() != null && !ref.getUrl().isEmpty()) {
-                    referenceMapper.insert(ref);
+        switch (refRaw) {
+            case null -> {
+            }
+            case List<?> list -> {
+                for (Object item : list) {
+                    VulReference ref = new VulReference();
+                    ref.setTemplateId(templateId);
+                    if (item instanceof String s) {
+                        ref.setUrl(trimTo(s.trim(), MAX_REF_URL));
+                    } else if (item instanceof Map<?, ?> m) {
+                        ref.setUrl(trimTo(str(((Map<String, Object>) m).get("url"), str(m.get("link"))), MAX_REF_URL));
+                        ref.setTitle(str(((Map<String, Object>) m).get("title")));
+                    }
+                    if (ref.getUrl() != null && !ref.getUrl().isEmpty()) {
+                        referenceMapper.insert(ref);
+                    }
                 }
             }
-        } else if (refRaw instanceof String s && !s.isBlank()) {
-            VulReference ref = new VulReference();
-            ref.setTemplateId(templateId);
-            ref.setUrl(trimTo(s.trim(), MAX_REF_URL));
-            referenceMapper.insert(ref);
+            case String s when !s.isBlank() -> {
+                VulReference ref = new VulReference();
+                ref.setTemplateId(templateId);
+                ref.setUrl(trimTo(s.trim(), MAX_REF_URL));
+                referenceMapper.insert(ref);
+            }
+            default -> {
+            }
         }
     }
 
@@ -611,7 +614,7 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         return templateTagMapper.selectList(
                 new LambdaQueryWrapper<VulTemplateTag>()
                         .eq(VulTemplateTag::getDeletedAt, 0L)
-                        .eq(VulTemplateTag::getTagId, tags.get(0).getTagId())
+                        .eq(VulTemplateTag::getTagId, tags.getFirst().getTagId())
         ).stream().map(VulTemplateTag::getTemplateId).collect(Collectors.toSet());
     }
 
@@ -629,7 +632,6 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
         try { return JSONUtil.toBean(json, Map.class); } catch (Exception e) { return null; }
     }
 
-    @SuppressWarnings("unchecked")
     private List<String> parseJsonList(String json) {
         if (StrUtil.isBlank(json)) return null;
         try { return JSONUtil.toList(json, String.class); } catch (Exception e) { return null; }
@@ -637,11 +639,8 @@ public class VulTemplateServiceImpl extends ServiceImpl<VulTemplateMapper, VulTe
 
     /* 导入解析工具 */
 
-    private String normalizeSeverity(String raw) {
-        if (raw == null || raw.isEmpty()) return "unknown";
-        String s = raw.trim().toLowerCase();
-        if ("informational".equals(s) || "none".equals(s)) return "info";
-        return VALID_SEVERITIES.contains(s) ? s : "unknown";
+    private VulSeverityEnum normalizeSeverity(String raw) {
+        return VulSeverityEnum.fromNucleiSeverity(raw);
     }
 
     /**

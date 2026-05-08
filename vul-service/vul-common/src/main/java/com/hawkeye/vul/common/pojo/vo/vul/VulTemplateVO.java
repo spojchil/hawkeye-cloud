@@ -1,5 +1,6 @@
 package com.hawkeye.vul.common.pojo.vo.vul;
 
+import com.hawkeye.vul.common.enums.VulSeverityEnum;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -19,7 +20,7 @@ public class VulTemplateVO {
         private String author;
         private String description;
         private String impact;
-        private String severity;
+        private VulSeverityEnum severity;
         private Map<String, Object> metadata;
         private String cveId;
         private String cweId;

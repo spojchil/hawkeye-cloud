@@ -1,5 +1,6 @@
 package com.hawkeye.vul.common.pojo.vo.vul;
 
+import com.hawkeye.vul.common.enums.VulSeverityEnum;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -23,7 +24,7 @@ public class VulTemplatePageVO {
         private Long templateId;
         private String yamlId;
         private String name;
-        private String severity;
+        private VulSeverityEnum severity;
         private String cveId;
         private Double cvssScore;
         private Boolean enabled;

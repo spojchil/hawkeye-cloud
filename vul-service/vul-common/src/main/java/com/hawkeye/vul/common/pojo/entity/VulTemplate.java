@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.common.utils.pojo.entity.BaseEntity;
+import com.hawkeye.vul.common.enums.VulSeverityEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -24,13 +25,9 @@ public class VulTemplate extends BaseEntity {
     private String name;
 
     private String author;
-
     private String description;
-
     private String impact;
-
-    /** critical / high / medium / low / info / unknown */
-    private String severity;
+    private VulSeverityEnum severity;
 
     /** JSON: custom metadata, free key-value */
     private String metadata;
